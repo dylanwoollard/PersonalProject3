@@ -12,8 +12,8 @@ from pathlib import Path
 # LLM MODEL
 # ══════════════════════════════════════════════════════════════════════════════
 
+# MODEL = "gemini-3.1-flash-lite-preview"
 MODEL = "gemini-3-flash-preview"
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GENERATION TEMPERATURES
@@ -80,13 +80,22 @@ MAX_TICKERS = 75  # Maximum number of instruments to fetch live market data for 
 # Applied to all Gemini calls when the model is busy (429 / ResourceExhausted).
 # ══════════════════════════════════════════════════════════════════════════════
 
-RETRY_MAX_ATTEMPTS = 5      # Total attempts (1 original + 4 retries)
-RETRY_BASE_DELAY   = 3.0    # Initial wait in seconds before the first retry
+RETRY_MAX_ATTEMPTS = 7      # Total attempts (1 original + 6 retries).
+                            # Increased from 5: 150k-char summarization bursts raise TPM
+                            # consumption significantly; more headroom prevents hard failures
+                            # on the pre-Phase-A Map calls.
+RETRY_BASE_DELAY   = 5.0    # Initial wait in seconds before the first retry.
+                            # Increased from 3.0: the Gemini quota replenishment window
+                            # is typically 60 seconds; a longer base delay reduces wasted
+                            # retries when the model is genuinely rate-limited.
 RETRY_BACKOFF      = 2.0    # Multiplicative factor applied to delay each retry
-RETRY_JITTER       = 1.0    # Max seconds of random jitter added per retry
+RETRY_JITTER       = 2.0    # Max seconds of random jitter added per retry (increased from 1.0)
 
 MAX_CONCURRENT_LLM_CALLS = 3  # Maximum number of simultaneous active Gemini API calls.
                                # Prevents 503 ServiceUnavailable under concurrent Phase B/C load.
+                               # The pre-Phase-A Map phase issues up to ceil(N/CHUNK_SIZE) concurrent
+                               # summarization calls — these queue against the same semaphore so
+                               # they do not add a separate burst on top of Phase B concurrency.
                                # Semaphore is held only during the active HTTP call, not during
                                # retry sleeps, so queued coroutines can fill freed slots immediately.
 
@@ -103,9 +112,26 @@ MAX_OUTPUT_TOKENS = 120000
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# TIERED SUMMARIZER
+# Pre-Phase-A map-reduce pipeline that converts raw intelligence (up to 150k
+# characters) into a ~12k Master Intelligence Map before any downstream LLM
+# call is made.  Cuts downstream context costs ~90% while preserving all
+# named entities, figures, tickers, and dates through analytical losslessness
+# requirements enforced in the prompt.
+# ══════════════════════════════════════════════════════════════════════════════
+
+SUMMARIZER_ENABLED      = True     # Set False to disable and pass raw content directly to all calls
+SUMMARIZER_THRESHOLD    = 30_000   # Only run if raw content exceeds this character count
+SUMMARIZER_CHUNK_SIZE   = 40_000   # Max characters per Map-phase chunk
+SUMMARIZER_TARGET_CHARS = 12_000   # Target Master Intelligence Map length for the Reduce phase
+TEMP_SUMMARIZER         = 0.2      # Map-phase chunk summarization temperature
+TEMP_MERGE              = 0.15     # Reduce-phase synthesis temperature (tighter for losslessness)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # FEATURE TOGGLES
 # ══════════════════════════════════════════════════════════════════════════════
 
-GENERATE_TRADES = False  # Set False to skip all trade generation (strategic, positional,
+GENERATE_TRADES = True  # Set False to skip all trade generation (strategic, positional,
                         # tactical) and quantitative analysis.  Useful for testing
                         # the briefing narrative without waiting for trade generation.

@@ -449,7 +449,8 @@ class RecentEarnings(BaseModel):
 class OpeningNarrative(BaseModel):
     """
     Phase B sub-output (split from OpeningSections).
-    Contains the epigraph and red cell scenarios.
+    Contains only the epigraph — red cell scenarios were removed in favour of
+    centralising all contrarian analysis in AdversarialAssessment.
     Does not require calendar data — runs on raw intelligence + historical context.
     """
     epigraph: str = Field(
@@ -462,15 +463,6 @@ class OpeningNarrative(BaseModel):
     )
     epigraph_attribution: str = Field(
         ..., description="Full name, role/title, and year of the quotation source"
-    )
-    red_cell_scenarios: List[RedCellScenario] = Field(
-        ...,
-        min_length=2,
-        max_length=3,
-        description=(
-            "2-3 low-probability, high-impact scenarios plausibly derivable from "
-            "today's intelligence but not the consensus view."
-        ),
     )
 
 
@@ -548,20 +540,16 @@ class OpeningSections(BaseModel):
             "Return an empty list if no recent earnings data is available."
         ),
     )
-    red_cell_scenarios: List[RedCellScenario] = Field(
-        ...,
-        min_length=2,
-        max_length=3,
-        description=(
-            "2-3 low-probability, high-impact scenarios plausibly derivable from "
-            "today's intelligence but not the consensus view."
-        ),
-    )
 
 
 # ── Priority Themes ───────────────────────────────────────────────────────────
 
-class PriorityTheme(BaseModel):
+class UnifiedIntelligenceTheme(BaseModel):
+    """
+    Unified theme model replacing separate PriorityTheme + TransmissionOverlay.
+    A single LLM call produces the full analytical picture per theme: signal/mechanism,
+    market impact, and risk transmission through second/third-order effects.
+    """
     rank: int = Field(..., ge=1, le=3, description="Priority rank: 1 = highest significance")
     title: str
     narrative: str = Field(
@@ -577,7 +565,7 @@ class PriorityTheme(BaseModel):
         min_length=3,
         max_length=4,
         description=(
-            "3-4 verbatim or near-verbatim specific data points from the intelligence emails. "
+            "3-4 verbatim or near-verbatim specific data points from the intelligence. "
             "Preserve specific figures, names, dates, and designations exactly. "
             "These will be rendered as bullet points."
         ),
@@ -605,26 +593,6 @@ class PriorityTheme(BaseModel):
     geographies: List[str] = Field(
         ..., description="Named geographic locations involved in this theme"
     )
-
-
-class PriorityThemes(BaseModel):
-    themes: List[PriorityTheme] = Field(
-        ..., min_length=3, max_length=3, description="Exactly 3 priority themes, ranked 1-3"
-    )
-
-    @field_validator("themes")
-    @classmethod
-    def unique_ranks(cls, v: list) -> list:
-        ranks = [t.rank for t in v]
-        if sorted(ranks) != [1, 2, 3]:
-            raise ValueError(f"themes must have ranks [1, 2, 3], got {ranks}")
-        return v
-
-
-# ── Transmission Overlays ─────────────────────────────────────────────────────
-
-class TransmissionOverlay(BaseModel):
-    theme_title: str = Field(..., description="Title matching a priority theme")
     primary_channel: str = Field(
         ...,
         description=(
@@ -660,14 +628,49 @@ class TransmissionOverlay(BaseModel):
             "Name specific sectors, instruments, and geographic markets."
         ),
     )
-    affected_instruments: List[str] = Field(
-        ..., min_length=2, description="Specific tickers, indices, or instruments in the transmission path"
+
+
+class PriorityThemes(BaseModel):
+    themes: List[UnifiedIntelligenceTheme] = Field(
+        ..., min_length=3, max_length=3, description="Exactly 3 unified intelligence themes, ranked 1-3"
     )
 
+    @field_validator("themes")
+    @classmethod
+    def unique_ranks(cls, v: list) -> list:
+        ranks = [t.rank for t in v]
+        if sorted(ranks) != [1, 2, 3]:
+            raise ValueError(f"themes must have ranks [1, 2, 3], got {ranks}")
+        return v
 
-class TransmissionOverlays(BaseModel):
-    overlays: List[TransmissionOverlay] = Field(
-        ..., description="One overlay per priority theme"
+
+# ── Executive Dashboard ───────────────────────────────────────────────────────
+
+class ExecutiveDashboard(BaseModel):
+    """
+    TL;DR first-page summary rendered as the opening page of the PDF.
+    Distills the briefing to its three most actionable data points.
+    """
+    top_risk: str = Field(
+        ...,
+        description=(
+            "The single highest-priority risk from the unified themes: 1-2 sentences naming "
+            "the specific threat, the transmission mechanism, and the most exposed instruments."
+        ),
+    )
+    top_opportunity: str = Field(
+        ...,
+        description=(
+            "The single best trade opportunity from the strategic trade thesis: 1-2 sentences "
+            "naming the instrument, the directional view, and the primary catalyst."
+        ),
+    )
+    critical_deadline: str = Field(
+        ...,
+        description=(
+            "The single most time-sensitive scheduled event from the economic calendar: "
+            "date, event name, and why it is the highest-stakes release for markets this week."
+        ),
     )
 
 

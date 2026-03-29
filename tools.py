@@ -881,3 +881,86 @@ def format_earnings_for_prompt(
                 lines.append(f"  Revenue — {' | '.join(rev_parts)}")
 
     return "\n".join(lines)
+
+
+# ── Cross-Asset Correlation Matrix ────────────────────────────────────────────
+
+def calculate_price_correlations(
+    tickers: list[str],
+    financial_data_map: Dict[str, "FinancialData"],
+) -> str:
+    """
+    Compute a 30-day daily-return correlation matrix for the given tickers
+    and return it as a formatted string for prompt injection.
+
+    Uses yfinance t.history(period="1mo") for each ticker.  Tickers that fail
+    to download (e.g. invalid symbols) are silently skipped.  If fewer than
+    two tickers yield usable data the function returns a fallback message.
+
+    The matrix is formatted as a compact upper-triangular text table so the
+    LLM can reference pairwise correlations without needing to parse JSON.
+    """
+    import math
+    import yfinance as yf
+
+    price_series: dict[str, list[float]] = {}
+    valid_tickers: list[str] = []
+
+    for raw_ticker in tickers:
+        # Strip EXCHANGE: prefix for yfinance
+        yfticker = raw_ticker.split(":")[-1] if ":" in raw_ticker else raw_ticker
+        try:
+            hist = yf.Ticker(yfticker).history(period="1mo")
+            if hist.empty or "Close" not in hist.columns or len(hist) < 5:
+                continue
+            closes = hist["Close"].dropna().tolist()
+            if len(closes) < 5:
+                continue
+            price_series[raw_ticker] = closes
+            valid_tickers.append(raw_ticker)
+        except Exception:
+            continue
+
+    if len(valid_tickers) < 2:
+        return "Insufficient data for correlation matrix (fewer than 2 tickers with 30-day history)."
+
+    def log_returns(prices: list[float]) -> list[float]:
+        return [math.log(prices[i] / prices[i - 1]) for i in range(1, len(prices))]
+
+    returns: dict[str, list[float]] = {t: log_returns(price_series[t]) for t in valid_tickers}
+    min_len = min(len(r) for r in returns.values())
+    returns = {t: r[-min_len:] for t, r in returns.items()}
+
+    def pearson(a: list[float], b: list[float]) -> float:
+        n = len(a)
+        mean_a = sum(a) / n
+        mean_b = sum(b) / n
+        num = sum((a[i] - mean_a) * (b[i] - mean_b) for i in range(n))
+        den_a = math.sqrt(sum((x - mean_a) ** 2 for x in a))
+        den_b = math.sqrt(sum((x - mean_b) ** 2 for x in b))
+        if den_a == 0 or den_b == 0:
+            return 0.0
+        return num / (den_a * den_b)
+
+    n = len(valid_tickers)
+    labels = [t.split(":")[-1][:8] for t in valid_tickers]
+    output_lines: list[str] = [
+        f"30-day daily-return correlations ({min_len} trading days, {n} instruments):",
+        "",
+        "         " + "  ".join(f"{lbl:>8}" for lbl in labels[1:]),
+    ]
+
+    for i in range(n - 1):
+        row_label = f"{labels[i]:>8} "
+        cells: list[str] = []
+        for j in range(i + 1, n):
+            corr = pearson(returns[valid_tickers[i]], returns[valid_tickers[j]])
+            cells.append(f"{corr:+.2f}    ")
+        output_lines.append(row_label + "".join(cells))
+
+    output_lines += [
+        "",
+        "Interpretation: +1.0 = perfect co-movement, -1.0 = perfect inverse, "
+        "0.0 = no linear relationship.",
+    ]
+    return "\n".join(output_lines)

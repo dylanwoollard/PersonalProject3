@@ -38,17 +38,17 @@ from models import (
     StrategicTrade,
     TacticalTradeSet,
     TradeLogicReview,
-    TransmissionOverlays,
 )
 from prompts import (
     ADVERSARIAL_PROMPT,
     APPENDIX_DATABASE_PROMPT,
     APPENDIX_PROMPT,
     APPENDIX_READING_LIST_PROMPT,
+    CHUNK_SUMMARY_PROMPT,
+    MERGE_SUMMARIES_PROMPT,
     OPENING_CALENDAR_PROMPT,
     OPENING_NARRATIVE_PROMPT,
     POSITIONAL_TRADES_PROMPT,
-    PRIORITY_THEMES_PROMPT,
     SINGLE_POSITIONAL_TRADE_PROMPT,
     SINGLE_TACTICAL_TRADE_PROMPT,
     STRATEGIC_INSTRUMENT_PROMPT,
@@ -57,7 +57,7 @@ from prompts import (
     SYSTEM_INSTRUCTION,
     TACTICAL_TRADES_PROMPT,
     TRADE_LOGIC_REVIEW_PROMPT,
-    TRANSMISSION_OVERLAYS_PROMPT,
+    UNIFIED_THEMES_PROMPT,
     build_prompt,
 )
 
@@ -202,45 +202,231 @@ def _format_excluded(tickers: list[str] | None) -> str:
     return ", ".join(tickers)
 
 
+async def _generate_text(
+    client: genai.Client,
+    prompt: str,
+    temperature: float = 0.2,
+    label: str = "text generation",
+) -> str:
+    """
+    Send a prompt to Gemini and return the raw text response.
+
+    Used for free-form generation tasks (summarization) where response_schema
+    and JSON enforcement are not needed.  Applies the same semaphore, retry,
+    and stagger logic as _generate_structured so summarization calls are
+    subject to the same rate-limit protections.
+    """
+    await asyncio.sleep(random.uniform(0, 2.0))
+
+    delay = config.RETRY_BASE_DELAY
+    for attempt in range(config.RETRY_MAX_ATTEMPTS):
+        try:
+            async with _llm_semaphore:
+                response = await client.aio.models.generate_content(
+                    model=MODEL,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=temperature,
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        max_output_tokens=config.MAX_OUTPUT_TOKENS,
+                    ),
+                )
+
+            if not response.text:
+                raise RuntimeError(
+                    f"[EMPTY] Model returned empty text for {label}. "
+                    f"finish_reason="
+                    f"{getattr(getattr(response, 'candidates', [None])[0], 'finish_reason', 'unknown')}"
+                )
+            return response.text.strip()
+
+        except Exception as exc:
+            exc_str = str(exc)
+            is_retriable = (
+                "429" in exc_str
+                or "ResourceExhausted" in type(exc).__name__
+                or "quota" in exc_str.lower()
+                or "overloaded" in exc_str.lower()
+                or "503" in exc_str
+                or "ServiceUnavailable" in type(exc).__name__
+            )
+            last_attempt = attempt == config.RETRY_MAX_ATTEMPTS - 1
+            if not is_retriable or last_attempt:
+                raise
+
+            jitter = random.uniform(0, config.RETRY_JITTER)
+            wait   = delay + jitter
+            _logger.warning(
+                "[HIGH USAGE] %s rate limit for %s — waiting %.1fs "
+                "(attempt %d/%d). %s: %s",
+                type(exc).__name__, label, wait,
+                attempt + 1, config.RETRY_MAX_ATTEMPTS,
+                type(exc).__name__, exc_str[:120],
+            )
+            await asyncio.sleep(wait)
+            _logger.info(
+                "[RESUMING] Retrying %s after %.1fs wait (attempt %d/%d)...",
+                label, wait, attempt + 2, config.RETRY_MAX_ATTEMPTS,
+            )
+            delay *= config.RETRY_BACKOFF
+
+    # Should be unreachable — last_attempt raises above
+    raise RuntimeError(f"[RETRY EXHAUSTED] {label}")
+
+
+def _chunk_content(content: str, chunk_size: int) -> list[str]:
+    """
+    Split raw intelligence content into chunks of at most chunk_size characters.
+
+    Splits are made at the nearest newline boundary before the size limit to
+    avoid cutting a sentence mid-stream.  If no newline is found within the
+    window, the hard limit is used.
+    """
+    if len(content) <= chunk_size:
+        return [content]
+
+    chunks: list[str] = []
+    start = 0
+    while start < len(content):
+        end = min(start + chunk_size, len(content))
+        if end < len(content):
+            newline = content.rfind("\n", start, end)
+            if newline > start:
+                end = newline + 1  # include the newline in the preceding chunk
+        chunks.append(content[start:end])
+        start = end
+    return chunks
+
+
+# ── Tiered Summarizer ─────────────────────────────────────────────────────────
+
+async def _generate_chunk_summary(
+    client: genai.Client,
+    chunk: str,
+    chunk_index: int,
+    total_chunks: int,
+) -> str:
+    """
+    Map phase: summarize one ~40k-char chunk of raw intelligence into a
+    high-density, analytically lossless summary.
+
+    Each call is independent and all chunks are gathered concurrently in
+    generate_master_intelligence_map, governed by _llm_semaphore.
+    """
+    prompt = CHUNK_SUMMARY_PROMPT.format(
+        chunk_index=chunk_index,
+        total_chunks=total_chunks,
+        chunk_text=chunk,
+    )
+    return await _generate_text(
+        client, prompt,
+        temperature=config.TEMP_SUMMARIZER,
+        label=f"ChunkSummary[{chunk_index}/{total_chunks}]",
+    )
+
+
+async def generate_master_intelligence_map(
+    client: genai.Client,
+    raw_content: str,
+) -> str:
+    """
+    Multi-stage map-reduce summarizer.
+
+    For inputs below SUMMARIZER_THRESHOLD or when SUMMARIZER_ENABLED is False,
+    raw_content is returned unchanged so the rest of the pipeline is unaffected.
+
+    Map phase:   Split raw_content into ~SUMMARIZER_CHUNK_SIZE chunks and
+                 summarize each concurrently via _generate_chunk_summary.
+                 All calls are governed by the module-level _llm_semaphore.
+
+    Reduce phase: Merge all chunk summaries into a single Master Intelligence
+                  Map (~SUMMARIZER_TARGET_CHARS characters) via MERGE_SUMMARIES_PROMPT.
+                  The merge prompt enforces analytical losslessness — no named
+                  entity, ticker, figure, or date may be dropped.
+
+    Returns the Master Intelligence Map as a plain string, ready to substitute
+    for payload.content in all Phase A and Phase B generator calls.
+    """
+    if not config.SUMMARIZER_ENABLED or len(raw_content) < config.SUMMARIZER_THRESHOLD:
+        _logger.info(
+            "Summarizer skipped — %d chars (threshold: %d).",
+            len(raw_content), config.SUMMARIZER_THRESHOLD,
+        )
+        return raw_content
+
+    chunks = _chunk_content(raw_content, config.SUMMARIZER_CHUNK_SIZE)
+    _logger.info(
+        "Summarizer: %d chunk(s) from %d chars — Map phase starting.",
+        len(chunks), len(raw_content),
+    )
+
+    # Map phase: all chunks run concurrently (semaphore limits simultaneous calls)
+    chunk_summaries: list[str] = list(await asyncio.gather(
+        *[
+            _generate_chunk_summary(client, chunk, i + 1, len(chunks))
+            for i, chunk in enumerate(chunks)
+        ]
+    ))
+
+    if len(chunk_summaries) == 1:
+        # Single chunk — no merge needed; return the chunk summary directly
+        _logger.info(
+            "Summarizer: single-chunk run — Reduce phase skipped.  "
+            "Master map: %d chars.", len(chunk_summaries[0]),
+        )
+        return chunk_summaries[0]
+
+    # Reduce phase: merge all chunk summaries into the Master Intelligence Map
+    _logger.info("Summarizer: Reduce phase — merging %d chunk summaries.", len(chunk_summaries))
+    numbered = "\n\n".join(
+        f"--- CHUNK SUMMARY {i + 1} OF {len(chunk_summaries)} ---\n{s}"
+        for i, s in enumerate(chunk_summaries)
+    )
+    merge_prompt = MERGE_SUMMARIES_PROMPT.format(
+        n_chunks=len(chunk_summaries),
+        target_chars=config.SUMMARIZER_TARGET_CHARS,
+        chunk_summaries=numbered,
+    )
+    master = await _generate_text(
+        client, merge_prompt,
+        temperature=config.TEMP_MERGE,
+        label="MasterIntelligenceMap",
+    )
+
+    _logger.info(
+        "Summarizer complete: %d raw chars → %d master map chars (%.1f%% reduction).",
+        len(raw_content), len(master),
+        (1 - len(master) / len(raw_content)) * 100,
+    )
+    return master
+
+
 # ── Generative Functions ──────────────────────────────────────────────────────
 
-async def generate_priority_themes(
+async def generate_unified_themes(
     client: genai.Client,
     raw_intelligence: str,
-    historical_context: str = "",  # no longer used in the prompt; kept for API compatibility
+    historical_context: str = "",
 ) -> PriorityThemes:
     """
-    Identify and analyze the top 3 priority intelligence themes.
+    Identify and analyze the top 3 priority intelligence themes, including
+    full risk transmission overlays (primary_channel, transmission_narrative,
+    second/third-order effects, risk_level) in a single LLM call.
+
+    Replaces the separate generate_priority_themes + generate_transmission_overlays
+    calls — halves the number of Phase A LLM calls and eliminates the need to
+    inject already-generated themes JSON into a second prompt.
+
     This output drives financial data fetching and all downstream trade prompts.
-    Runs concurrently with generate_appendix_and_database in the pipeline.
+    Runs concurrently with generate_appendix_database in the pipeline.
     """
     prompt = build_prompt(
-        PRIORITY_THEMES_PROMPT,
+        UNIFIED_THEMES_PROMPT,
         raw_intelligence=raw_intelligence,
+        historical_context=historical_context,
     )
     return await _generate_structured(
         client, prompt, PriorityThemes, temperature=config.TEMP_THEMES
-    )
-
-
-async def generate_transmission_overlays(
-    client: genai.Client,
-    raw_intelligence: str,
-    historical_context: str,
-    priority_themes: PriorityThemes,
-) -> TransmissionOverlays:
-    """
-    Map how each priority theme's risk propagates through financial markets,
-    including second- and third-order effects.
-    """
-    prompt = build_prompt(
-        TRANSMISSION_OVERLAYS_PROMPT,
-        raw_intelligence=raw_intelligence,
-        historical_context=historical_context,
-        priority_themes_json=priority_themes.model_dump_json(indent=2),
-    )
-    return await _generate_structured(
-        client, prompt, TransmissionOverlays, temperature=config.TEMP_OVERLAYS
     )
 
 
@@ -385,6 +571,7 @@ async def generate_quant_analysis_batch(
     trade_jsons: list[str],
     financial_data: str,
     historical_context: str,
+    correlation_matrix: str = "No correlation data available.",
 ) -> object:
     """
     Generate QuantAnalysis for 1-3 trades in a single Gemini call.
@@ -401,6 +588,7 @@ async def generate_quant_analysis_batch(
         trades_json=trades_array,
         financial_data=financial_data,
         historical_context=historical_context,
+        correlation_matrix=correlation_matrix,
     )
     return await _generate_structured(
         client, prompt, QuantAnalysisBatch, temperature=config.TEMP_STRATEGIC
@@ -473,6 +661,7 @@ async def generate_trade_logic_review(
     client: genai.Client,
     strategic: StrategicTrade,
     strategic_quant,
+    correlation_matrix: str = "No correlation data available.",
 ) -> TradeLogicReview:
     """
     Review the strategic trade and its quant analysis for logical fallacies
@@ -490,6 +679,7 @@ async def generate_trade_logic_review(
         raw_intelligence="",  # not needed — trade + quant are self-contained
         trade_and_quant_json=json.dumps(combined, indent=2),
         today=date.today().isoformat(),
+        correlation_matrix=correlation_matrix,
     )
     return await _generate_structured(
         client, prompt, TradeLogicReview, temperature=config.TEMP_STRATEGIC

@@ -18,6 +18,7 @@ from typing import Optional
 from models import (
     AdversarialAssessment,
     AppendixOutput,
+    ExecutiveDashboard,
     OpeningSections,
     PositionalTradeSet,
     PriorityThemes,
@@ -26,7 +27,6 @@ from models import (
     TacticalTradeSet,
     Trade,
     TradeLogicReview,
-    TransmissionOverlays,
 )
 
 
@@ -1403,32 +1403,27 @@ def _render_recent_earnings(opening: OpeningSections) -> str:
     )
 
 
-def _render_red_cell(opening: OpeningSections) -> str:
-    parts = [
-        "<div class='section-wrapper' id='adverse-scenario'>",
-        "<h2>Red Cell</h2>",
-    ]
-    for sc in opening.red_cell_scenarios:
-        market_block = (
-            "<div style='margin-top:12px;padding:12px;background:var(--bg-accent);border-radius:3px;break-inside:avoid;page-break-inside:avoid;'>"
-            "<span class='label' style='color:var(--red);'>Market Implications</span>"
-            f"<p style='margin:4px 0 0;'>{_e(sc.market_implications)}</p>"
-            "</div>"
-        )
-        parts.append(
-            "<div class='card card-red'>"
-            "<div class='redcell-header'>"
-            f"<h3>{_e(sc.title)}</h3>"
-            f"<span class='redcell-prob-badge'>P: {_e(sc.probability_assessment)}</span>"
-            "</div>"
-            f"<p>{_e(sc.narrative)}</p>"
-            "<span class='label' style='margin-top:12px;'>Trigger Conditions</span>"
-            + _dp_list(sc.trigger_conditions)
-            + market_block
-            + "</div>"
-        )
-    parts.append("</div>")
-    return "\n".join(parts)
+def _render_executive_dashboard(dashboard: ExecutiveDashboard) -> str:
+    """Render the TL;DR first-page summary card."""
+    return (
+        "<div class='section-wrapper' id='executive-dashboard'>"
+        "<h2>Executive Dashboard</h2>"
+        "<div class='card' style='border-left:4px solid var(--mck-navy);'>"
+        "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;'>"
+        "<div>"
+        "<span class='label' style='color:var(--red);'>Top Risk</span>"
+        f"<p style='margin-top:8px;'>{_e(dashboard.top_risk)}</p>"
+        "</div>"
+        "<div>"
+        "<span class='label' style='color:var(--green);'>Top Opportunity</span>"
+        f"<p style='margin-top:8px;'>{_e(dashboard.top_opportunity)}</p>"
+        "</div>"
+        "<div>"
+        "<span class='label' style='color:var(--mck-blue);'>Critical Deadline</span>"
+        f"<p style='margin-top:8px;'>{_e(dashboard.critical_deadline)}</p>"
+        "</div>"
+        "</div></div></div>"
+    )
 
 
 def _render_priority_themes(themes: PriorityThemes) -> str:
@@ -1437,6 +1432,22 @@ def _render_priority_themes(themes: PriorityThemes) -> str:
         "<h2>Priority Intelligence Themes</h2>",
     ]
     for theme in themes.themes:
+        risk = theme.risk_level.value if isinstance(theme.risk_level, RiskLevel) else str(theme.risk_level)
+        transmission_block = (
+            "<div style='margin-top:16px;border-top:1px solid var(--border);padding-top:14px;'>"
+            f"<span class='label'>Risk Transmission — {_e(theme.primary_channel)}</span>"
+            f"<span class='badge badge-{risk}' style='margin-left:8px;'>{risk}</span>"
+            f"<p style='margin-top:8px;'>{_e(theme.transmission_narrative)}</p>"
+            "<div class='overlay-grid'>"
+            "<div class='overlay-box'><span class='overlay-box-label'>Second-Order Effects</span>"
+            + _dp_list(theme.second_order_effects)
+            + "</div>"
+            + "<div class='overlay-box'><span class='overlay-box-label'>Third-Order Effects</span>"
+            + _dp_list(theme.third_order_effects)
+            + "</div></div>"
+            + ("<span class='label' style='margin-top:10px;'>Affected Sectors</span>" + _tags(theme.affected_sectors) if theme.affected_sectors else "")
+            + "</div>"
+        )
         parts.append(
             "<div class='card card-gold'>"
             "<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px;'>"
@@ -1456,40 +1467,8 @@ def _render_priority_themes(themes: PriorityThemes) -> str:
                 + _tags(theme.geographies)
                 if getattr(theme, "geographies", None) else ""
             )
+            + transmission_block
             + "</div>"
-        )
-    parts.append("</div>")
-    return "\n".join(parts)
-
-
-def _render_transmission_overlays(overlays: TransmissionOverlays) -> str:
-    parts = [
-        "<div class='section-wrapper' id='risk-overlays'>",
-        "<h2>Risk Transmission Overlays</h2>",
-    ]
-    for ov in overlays.overlays:
-        risk = ov.risk_level.value if isinstance(ov.risk_level, RiskLevel) else str(ov.risk_level)
-        tail = (
-            "</div></div>"
-            + ("<span class='label' style='margin-top:14px;'>Affected Sectors</span>" + _tags(ov.affected_sectors) if ov.affected_sectors else "")
-            + ("<span class='label' style='margin-top:8px;'>Affected Instruments</span>" + _tags(ov.affected_instruments) if ov.affected_instruments else "")
-            + "</div>"
-        )
-        parts.append(
-            "<div class='card'>"
-            "<div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:8px;'>"
-            f"<h3>{_e(ov.theme_title)}</h3>"
-            f"<span class='badge badge-{risk}'>{risk}</span>"
-            "</div>"
-            f"<span class='label'>Primary Channel: {_e(ov.primary_channel)}</span>"
-            f"<p style='margin-top:8px;'>{_e(ov.transmission_narrative)}</p>"
-            "<div class='overlay-grid'>"
-            "<div class='overlay-box'><span class='overlay-box-label'>Second-Order Effects</span>"
-            + _dp_list(ov.second_order_effects)
-            + "</div>"
-            + "<div class='overlay-box'><span class='overlay-box-label'>Third-Order Effects</span>"
-            + _dp_list(ov.third_order_effects)
-            + tail
         )
     parts.append("</div>")
     return "\n".join(parts)
@@ -1826,12 +1805,7 @@ def _render_appendix(appendix: AppendixOutput) -> str:
     return (
         "<div class='section-wrapper' id='reference-materials'>"
         + books_html
-        + "<div class='card print-hide'>"
-        + "<span class='label'>Entity Registry</span>"
-        + _tags(appendix.key_entities)
-        + "<span class='label' style='margin-top:14px;'>Situation Index</span>"
-        + _tags(appendix.key_situations)
-        + "</div></div>"
+        + "</div>"
     )
 
 
@@ -1850,7 +1824,6 @@ def _render_intelligence_summary(appendix: AppendixOutput) -> str:
 def compile_html_document(
     opening:   OpeningSections,
     themes:    PriorityThemes,
-    overlays:  TransmissionOverlays,
     appendix:  AppendixOutput,
     strategic: Optional[StrategicTrade] = None,
     positional: Optional[PositionalTradeSet] = None,
@@ -1862,6 +1835,7 @@ def compile_html_document(
     tactical_quants: Optional[list] = None,
     adversarial: Optional[AdversarialAssessment] = None,
     logic_review: Optional[TradeLogicReview] = None,
+    dashboard: Optional[ExecutiveDashboard] = None,
 ) -> str:
     """
     Concatenate all rendered HTML sections into a single styled document.
@@ -1871,18 +1845,18 @@ def compile_html_document(
     if briefing_date is None:
         briefing_date = date.today()
 
-    sections = [
-        _render_header(briefing_date),
+    sections = [_render_header(briefing_date)]
+    if dashboard is not None:
+        sections.append(_render_executive_dashboard(dashboard))
+    sections += [
         _render_market_snapshot(market_snapshot or []),
         _render_intelligence_summary(appendix),
         _render_epigraph(opening),
         _render_calendar(opening),
         _render_upcoming_earnings(opening),
         _render_recent_earnings(opening),
-        _render_red_cell(opening),
         _render_priority_themes(themes),
         _render_adversarial_assessment(adversarial),
-        _render_transmission_overlays(overlays),
     ]
 
     if strategic is not None:
@@ -1913,27 +1887,32 @@ def compile_html_document(
 def aggregate_json_output(
     opening:    OpeningSections,
     themes:     PriorityThemes,
-    overlays:   TransmissionOverlays,
     appendix:   AppendixOutput,
     strategic:  Optional[StrategicTrade] = None,
     positional: Optional[PositionalTradeSet] = None,
     tactical:   Optional[TacticalTradeSet] = None,
     briefing_date: Optional[date] = None,
+    dashboard:  Optional[ExecutiveDashboard] = None,
 ) -> dict:
     """
     Aggregate all validated Pydantic objects into a single master dictionary
     suitable for JSON serialization and longitudinal storage.
+
+    Transmission overlay data is embedded within each theme in the
+    priority_themes field (unified model).  Entity registry and situation
+    index are preserved here for longitudinal memory even though they are
+    no longer rendered in the HTML output.
     """
     if briefing_date is None:
         briefing_date = date.today()
 
     return {
-        "date":                briefing_date.isoformat(),
-        "opening_sections":    opening.model_dump(),
-        "priority_themes":     themes.model_dump(),
-        "transmission_overlays": overlays.model_dump(),
-        "strategic_trade":     strategic.model_dump() if strategic is not None else None,
-        "positional_trades":   positional.model_dump() if positional is not None else None,
-        "tactical_trades":     tactical.model_dump() if tactical is not None else None,
-        "appendix":            appendix.model_dump(),
+        "date":              briefing_date.isoformat(),
+        "opening_sections":  opening.model_dump(),
+        "priority_themes":   themes.model_dump(),
+        "executive_dashboard": dashboard.model_dump() if dashboard is not None else None,
+        "strategic_trade":   strategic.model_dump() if strategic is not None else None,
+        "positional_trades": positional.model_dump() if positional is not None else None,
+        "tactical_trades":   tactical.model_dump() if tactical is not None else None,
+        "appendix":          appendix.model_dump(),
     }

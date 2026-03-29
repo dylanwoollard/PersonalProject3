@@ -94,33 +94,39 @@ ANALYTICAL_STANDARDS = """\
 
 # ── Prompt Templates ──────────────────────────────────────────────────────────
 
-PRIORITY_THEMES_PROMPT = """\
+UNIFIED_THEMES_PROMPT = """\
 {analytical_standards}
 
 ---
 
-## TASK: PRIORITY THEMES GENERATION
+## TASK: UNIFIED INTELLIGENCE THEMES GENERATION
 
 **Briefing Date:** {today}
 
 ### RAW INTELLIGENCE INPUT
 {raw_intelligence}
 
+### HISTORICAL CONTEXT (180-Day Longitudinal Record)
+{historical_context}
+
 ---
 
 ## INSTRUCTIONS
 
-Identify and analyze the top 3 priority themes from today's intelligence.
-These are the themes with the greatest combined geopolitical significance and
-financial market impact.  Rank them 1 (highest) to 3 (lowest).
+Identify and analyze the top 3 priority intelligence themes from today's
+material.  These are the themes with the greatest combined geopolitical
+significance and financial market impact.  Rank them 1 (highest) to 3 (lowest).
 
-For each theme:
+For each theme produce the full analytical picture — signal/mechanism, market
+impact, and risk transmission — in a single unified output.
+
+**Core analysis:**
 - **narrative:** Flowing bureaucratic prose.  Causal analysis is mandatory.
   Contextualize within the broader geopolitical and macroeconomic framework.
   Reference the historical record where a precedent exists.
-- **key_data_points:** Verbatim or near-verbatim data points from the
-  intelligence emails.  Preserve specific figures, names, and designations
-  exactly as they appear.  Generate exactly 4 key_data_points per theme.
+- **key_data_points:** Verbatim or near-verbatim data points.  Preserve
+  specific figures, names, and designations exactly as they appear.
+  Generate exactly 4 key_data_points per theme.
 - **signal / mechanism / market_impact:** These three fields must form a
   coherent analytical chain.  Signal: the observable intelligence fact.
   Mechanism: the causal pathway.  Market Impact: expected financial consequence
@@ -132,61 +138,23 @@ For each theme:
 - **geographies:** Named geographic locations material to this theme
   (countries, regions, cities, bodies of water, military districts).
 
+**Risk transmission:**
+- **primary_channel:** Name the specific transmission mechanism
+  (e.g., "Sovereign Credit Channel", "Commodity Input Cost Channel",
+  "Currency Redenomination Risk", "Trade Finance Disruption").
+- **affected_sectors:** GICS sectors or industry groups directly impacted.
+  Provide at least 3 entries.
+- **risk_level:** LOW, MEDIUM, HIGH, or CRITICAL — assessed probability and
+  severity of transmission within a 30-day horizon.
+- **transmission_narrative:** Flowing bureaucratic prose describing the
+  propagation path.  Name specific conduits, counterparties, and market
+  structures involved.
+- **second_order_effects:** Direct consequences of the primary transmission.
+  Name specific sectors, instruments, and geographic markets.
+- **third_order_effects:** Subsequent systemic or contagion effects following
+  second-order impacts.  Name specific sectors, instruments, and geographies.
+
 Output valid JSON conforming to the PriorityThemes schema (exactly 3 themes).
-"""
-
-TRANSMISSION_OVERLAYS_PROMPT = """\
-{analytical_standards}
-
----
-
-## TASK: RISK TRANSMISSION OVERLAYS
-
-**Briefing Date:** {today}
-
-### RAW INTELLIGENCE INPUT
-{raw_intelligence}
-
-### HISTORICAL CONTEXT (180-Day Longitudinal Record)
-{historical_context}
-
-### PRIORITY THEMES (already generated — do not regenerate)
-{priority_themes_json}
-
----
-
-## INSTRUCTIONS
-
-For each priority theme generate a transmission overlay that maps how the
-geopolitical or macroeconomic risk propagates through financial markets.
-
-**primary_channel:** Name the specific transmission mechanism
-(e.g., "Sovereign Credit Channel", "Commodity Input Cost Channel",
-"Currency Redenomination Risk", "Trade Finance Disruption").
-
-**transmission_narrative:** Flowing bureaucratic prose describing the
-propagation path.  Name specific conduits, counterparties, and market
-structures involved.
-
-**second_order_effects:** Direct consequences of the primary transmission.
-Name specific sectors (by GICS classification or common industry name),
-instruments, and geographic markets.
-
-**third_order_effects:** Subsequent systemic or contagion effects following
-second-order impacts.  Name specific sectors, instruments, and geographies.
-
-**risk_level:** Assign LOW, MEDIUM, HIGH, or CRITICAL based on assessed
-probability and severity of transmission within a 30-day horizon.
-
-**affected_sectors:** List all GICS sectors or industry groups that are directly
-impacted by the transmission. This field is mandatory — always provide at least
-3 entries (e.g., "Energy", "Financials", "Industrials").
-
-**affected_instruments:** List all specific tickers, indices, ETFs, or
-instruments that sit in the transmission path. This field is mandatory — always
-provide at least 3 entries using the EXCHANGE:TICKER format for equities.
-
-Output valid JSON conforming to the TransmissionOverlays schema.
 """
 
 STRATEGIC_TRADE_PROMPT = """\
@@ -676,7 +644,7 @@ APPENDIX_PROMPT = APPENDIX_DATABASE_PROMPT
 
 # ── Split Opening Prompts ─────────────────────────────────────────────────────
 # OpeningSections is split into two concurrent calls to stay within the model's
-# output ceiling.  OpeningNarrative (epigraph + red cell) runs on raw intel only.
+# output ceiling.  OpeningNarrative (epigraph only) runs on raw intel only.
 # OpeningCalendar (calendar + earnings) requires the live data feeds.
 
 OPENING_NARRATIVE_PROMPT = """\
@@ -698,7 +666,7 @@ OPENING_NARRATIVE_PROMPT = """\
 
 ## INSTRUCTIONS
 
-Generate the narrative opening sections of today's intelligence briefing.
+Generate the narrative opening for today's intelligence briefing.
 
 **Epigraph**
 Select a brief, relevant quotation from a statesman, strategist, economist, or
@@ -706,15 +674,6 @@ philosopher whose wisdom is directly applicable to the dominant theme in
 today's intelligence.  Attribute precisely (full name, role or title, year if
 known).  The tone must be measured and analytical — not inspirational or
 dramatic.
-
-**Red Cell Scenarios**
-Generate 2-3 low-probability, high-impact scenarios that are plausibly
-derivable from today's intelligence but are not the consensus view.
-Probability assessments must be ranges (e.g., "Low (5-10%)") — never single
-point estimates.  Narratives must be sober and analytically grounded.
-Each scenario must include:
-- Specific trigger_conditions: observable facts or events that would actualize it
-- market_implications: specific named instruments, directions, and approximate magnitude
 
 Output valid JSON conforming to the OpeningNarrative schema.
 """
@@ -850,6 +809,9 @@ to validate the trade.  Apply the analytical standards of a rigorous peer review
 ### STRATEGIC TRADE AND QUANTITATIVE ANALYSIS
 {trade_and_quant_json}
 
+### CROSS-ASSET PRICE CORRELATIONS (30-Day)
+{correlation_matrix}
+
 ---
 
 ## INSTRUCTIONS
@@ -901,6 +863,9 @@ the same order, inside the `analyses` list of a QuantAnalysisBatch object.
 
 ### HISTORICAL CONTEXT (180-Day Longitudinal Record)
 {historical_context}
+
+### CROSS-ASSET PRICE CORRELATIONS (30-Day)
+{correlation_matrix}
 
 ---
 
@@ -990,6 +955,116 @@ list must contain exactly {n_trades} entries in the same order as the trades.
 """
 
 
+# ── Tiered Summarizer Prompts ─────────────────────────────────────────────────
+# Used by the pre-Phase-A map-reduce pipeline to convert raw intelligence
+# (up to 150k characters) into a ~12k Master Intelligence Map before any
+# downstream analytical calls are made.
+#
+# CHUNK_SUMMARY_PROMPT (Map phase):   one call per ~40k-char chunk
+# MERGE_SUMMARIES_PROMPT (Reduce):   one call to synthesize all chunk summaries
+
+CHUNK_SUMMARY_PROMPT = """\
+## TASK: INTELLIGENCE CHUNK SUMMARIZATION
+
+**Chunk {chunk_index} of {total_chunks}**
+
+You are performing the Map phase of a multi-stage intelligence summarization.
+Your role is signals extraction, not narrative prose.  Compress this chunk into
+a high-density analytical summary while preserving every specific data point.
+
+### RAW INTELLIGENCE CHUNK
+{chunk_text}
+
+---
+
+## MANDATORY PRESERVATION RULES
+
+You MUST NOT drop or paraphrase away any of the following:
+- All named persons — full name and title/role as they appear in the source
+- All named organizations, state actors, government bodies, and institutions
+- All ticker symbols, ISINs, CUSIPs, and instrument identifiers
+- All numerical figures: prices, percentages, rates, quantities, capacities, dates
+- All named events, treaties, legislation, regulatory actions, and policy programs
+- All named geographic locations material to any development
+
+## OUTPUT STRUCTURE
+
+**Geopolitical Developments:**
+All active geopolitical events with named actors, locations, dates, and outcomes.
+Preserve policy language and official statements verbatim where material.
+
+**Macroeconomic and Policy Signals:**
+Central bank actions, data releases, fiscal measures, rate decisions.
+Preserve all figures, rate paths, and forward guidance language verbatim.
+
+**Corporate and Sector Signals:**
+Earnings, guidance, M&A, supply-chain, and regulatory events.
+Name all tickers (EXCHANGE:TICKER format), figures, and named executives.
+
+**Named Data Point Index:**
+A bullet list of every specific entity, ticker, figure, and date in this chunk —
+a lossless reference index.  Format: item — context.
+"""
+
+
+MERGE_SUMMARIES_PROMPT = """\
+## TASK: MASTER INTELLIGENCE MAP SYNTHESIS
+
+You have received {n_chunks} chunk summaries from today's raw intelligence
+collection.  Synthesize them into a single **Master Intelligence Map** of
+approximately {target_chars} characters that will serve as the primary
+analytical context for all downstream briefing generation tasks.
+
+### CHUNK SUMMARIES
+{chunk_summaries}
+
+---
+
+## ANALYTICAL LOSSLESSNESS — ABSOLUTE REQUIREMENT
+
+The Master Intelligence Map MUST preserve EVERY data point that appeared in
+ANY of the input chunk summaries.  You may NOT drop, consolidate away, or
+paraphrase to the point of losing:
+- Named persons, organizations, and state actors
+- Ticker symbols, ISINs, and all instrument identifiers
+- All numerical figures, percentages, prices, and quantities
+- All dates, timelines, and deadlines
+- Named events, legislation, treaties, and regulatory actions
+- Named geographic locations
+
+When the same entity or event appears in multiple chunks, merge the data points —
+do not drop any detail that appeared in any chunk.
+
+## OUTPUT STRUCTURE
+
+### 1. Priority Geopolitical Developments
+Major state-level and multilateral developments with direct market implications.
+Name all specific actors, events, dates, and policy language verbatim.
+
+### 2. Macroeconomic and Monetary Policy Signals
+Central bank communications, economic data releases, fiscal policy, and
+monetary transmission dynamics.  Preserve all figures and forward guidance
+language verbatim.
+
+### 3. Corporate and Sector Intelligence
+Earnings, guidance, M&A, regulatory actions, supply-chain developments.
+Name all tickers (EXCHANGE:TICKER format), figures, and named executives verbatim.
+
+### 4. Market Structure Signals
+Options flow, positioning data, technical levels, short interest, and
+institutional flow indicators.  Preserve all numerical data verbatim.
+
+### 5. Named Data Point Inventory
+A consolidated bullet index of every named entity, ticker, figure, and date
+from today's intelligence across all chunks.  Format: item — context.
+One bullet per distinct data point.  This is the authoritative reference index.
+
+Analytical losslessness takes precedence over brevity.
+If preserving all data points requires exceeding {target_chars} characters,
+err on the side of completeness.
+"""
+
+
 # ── Builder ───────────────────────────────────────────────────────────────────
 
 class _SafeFormatMap(dict):
@@ -1010,6 +1085,7 @@ def build_prompt(
     trade_and_quant_json: str = "{}",
     trade_number: int = 1,
     today: Optional[str] = None,
+    correlation_matrix: str = "No correlation data available.",
 ) -> str:
     """
     Inject all context variables into a prompt template.
@@ -1033,5 +1109,6 @@ def build_prompt(
         earnings_calendar=earnings_calendar,
         trade_and_quant_json=trade_and_quant_json,
         trade_number=str(trade_number),
+        correlation_matrix=correlation_matrix,
     )
     return template.format_map(values)
