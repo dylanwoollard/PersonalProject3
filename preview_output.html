@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='UTF-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+  <title>Daily Brief &mdash; 032326</title>
+
+<style>
+  :root {
+    --bg-primary:    #ffffff;
+    --bg-secondary:  #f3f4f5;
+    --bg-card:       #ffffff;
+    --bg-accent:     #f3f4f5;
+    --border:        #cccccc;
+    --border-accent: #051c2c;
+    --text-primary:  #111111;
+    --text-secondary:#444444;
+    --text-muted:    #757575;
+    --mck-navy:      #051c2c;
+    --mck-blue:      #00609c;
+    --red:           #b22a2a;
+    --green:         #2a7a40;
+    --font-serif:    Georgia, 'Times New Roman', serif;
+    --font-mono:     'Courier New', Courier, monospace;
+    --font-sans:     Arial, 'Helvetica Neue', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: 13px;
+    line-height: 1.7;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* ── Typography ── */
+  p { margin-bottom: 10px; }
+  p:last-child { margin-bottom: 0; }
+
+  h2 {
+    font-family: var(--font-sans);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--mck-navy);
+    border-left: none;
+    padding-left: 0;
+    margin-bottom: 16px;
+    text-transform: none;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  h3 {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+    margin-bottom: 12px;
+  }
+
+  /* ── Utility classes ── */
+  .label {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--mck-navy);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .section-wrapper { margin-bottom: 56px; }
+
+  hr.divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 56px 0;
+  }
+
+  /* ── Header ── */
+  .briefing-header {
+    text-align: center;
+    border-bottom: 2px solid var(--mck-blue);
+    padding-bottom: 28px;
+    margin-bottom: 48px;
+  }
+  .classification-banner {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--mck-blue);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .briefing-title {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .briefing-date {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+  }
+
+  /* ── Epigraph ── */
+  .epigraph {
+    border-left: 3px solid var(--mck-blue);
+    padding: 16px 24px;
+    background: var(--bg-secondary);
+    margin: 36px 0;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--text-secondary);
+  }
+  .epigraph-attribution {
+    font-style: normal;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 10px;
+    display: block;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: transparent;
+    border: none;
+    border-top: 2px solid var(--mck-navy);
+    border-radius: 0;
+    padding: 24px 0;
+    margin-bottom: 32px;
+  }
+  .card-gold { border-top-color: var(--mck-blue); border-left: none; }
+  .card-red  { border-top-color: var(--red); break-inside: avoid; page-break-inside: avoid; }
+
+  /* ── Data-point list ── */
+  .dp-list {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0;
+  }
+  .dp-list li {
+    padding: 5px 0;
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-family: var(--font-serif);
+    border-bottom: 1px solid var(--border);
+  }
+  .dp-list li:last-child { border-bottom: none; }
+  .dp-list li::before {
+    content: "■";
+    color: var(--mck-navy);
+    font-size: 7px;
+    flex-shrink: 0;
+    position: relative;
+    top: -1px;
+  }
+
+  /* ── Causal flow (Signal → Mechanism → Impact) — table for PDF reliability ── */
+  .causal-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    border: 1px solid var(--border);
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .causal-cell {
+    border: 1px solid var(--border);
+    vertical-align: top;
+    width: 31%;
+  }
+  .causal-cell-label {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: var(--mck-navy);
+    text-transform: uppercase;
+    background: var(--bg-secondary);
+    padding: 5px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .causal-cell-body {
+    display: block;
+    font-family: var(--font-serif);
+    font-size: 12px;
+    color: var(--text-primary);
+    padding: 11px 13px;
+    line-height: 1.5;
+  }
+  .causal-arrow-cell {
+    text-align: center;
+    vertical-align: middle;
+    width: 3.5%;
+    color: var(--mck-navy);
+    font-size: 14px;
+    font-weight: 700;
+    padding: 0 2px;
+    border: none;
+    background: var(--bg-secondary);
+  }
+
+  /* ── Scenario analysis ── */
+  .scenario-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 0;
+    border: 1px solid var(--border);
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .scenario-table thead th {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--mck-navy);
+    background: var(--bg-secondary);
+    padding: 6px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .scenario-table thead th:last-child { border-right: none; }
+  .scenario-table tbody tr { border-bottom: 1px solid var(--border); }
+  .scenario-table tbody tr:last-child { border-bottom: none; }
+  .scenario-table td {
+    padding: 10px 12px;
+    vertical-align: middle;
+    border-right: 1px solid var(--border);
+  }
+  .scenario-table td:last-child { border-right: none; }
+  .scenario-bull td:first-child { border-left: 3px solid #2a7a40; }
+  .scenario-base td:first-child { border-left: 3px solid #666666; }
+  .scenario-bear td:first-child { border-left: 3px solid #b22a2a; }
+  .scenario-case-bull { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #2a7a40; }
+  .scenario-case-base { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #666666; }
+  .scenario-case-bear { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #b22a2a; }
+  .scenario-table td:nth-child(2),
+  .scenario-table td:nth-child(3) { text-align: center; }
+  .scenario-price { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+  .scenario-prob  { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+  .scenario-logic { font-family: var(--font-serif); font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+  .scenario-ev {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-top: none;
+    padding: 7px 12px;
+    margin-bottom: 14px;
+  }
+
+  /* ── Tags ── */
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tag {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 8px;
+    background: #f8f9fa;
+    border: 1px solid var(--border);
+    color: var(--mck-blue);
+    border-radius: 0;
+  }
+  .tag::after{
+    content: "";
+  }
+  .tag:last-child::after { content: ""; }
+
+  /* ── Risk badge ── */
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 2px;
+    font-size: 9px;
+    font-family: var(--font-mono);
+    letter-spacing: 2px;
+    font-weight: 700;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  .badge-LOW      { color: #4a8c5c; border: 1px solid #4a8c5c; background: rgba(74,140,92,.15);  }
+  .badge-MEDIUM   { color: #b5a44a; border: 1px solid #b5a44a; background: rgba(181,164,74,.15); }
+  .badge-HIGH     { color: #b57a4a; border: 1px solid #b57a4a; background: rgba(181,122,74,.15); }
+  .badge-CRITICAL { color: #b54a4a; border: 1px solid #b54a4a; background: rgba(181,74,74,.15);  }
+
+  /* ── Calendar ── */
+  .cal-table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: var(--font-serif); }
+  .cal-table th {
+    text-align: left; padding: 8px 12px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--mck-blue);
+    border-bottom: 1px solid var(--border);
+  }
+  .cal-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-primary); }
+  .cal-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .cal-table tr:last-child td { border-bottom: none; }
+  .cal-date { font-family: var(--font-mono); color: var(--text-primary); white-space: nowrap; }
+
+  /* ── Red cell ── */
+  .redcell-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .redcell-prob-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--red);
+    border: 1px solid var(--red);
+    background: rgba(178,42,42,0.07);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── Theme rank ── */
+  .theme-rank { font-family: var(--font-mono); font-size: 42px; color: var(--border-accent); line-height: 1; }
+
+  /* ── Trade page (each trade starts on a new page) ── */
+  .trade-page { break-before: page; page-break-before: always; margin-top: 0; }
+
+  /* ── Trade card ── */
+  .trade-card { background: none; border: none; border-radius: 0; overflow: visible; margin-bottom: 36px; break-inside: avoid; page-break-inside: avoid; }
+  .trade-header {
+    padding: 18px 0; background: none;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  }
+  .trade-last-price {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .trade-ticker  { font-family: var(--font-sans); font-size: 20px; font-weight: 700; letter-spacing: 0.3px; color: var(--mck-navy); }
+  .trade-ticker-exchange { font-weight: 700; color: var(--mck-navy); }
+  .trade-ticker-sep { margin: 0 10px; color: var(--border); font-weight: 300; }
+  .trade-ticker-name { font-weight: 400; font-size: 15px; color: var(--text-secondary); }
+  .trade-badges  { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .dir-LONG  { padding: 3px 10px; background: rgba(42,107,64,.12);  color: #1e5c30; border: 1px solid #1e5c30; border-radius: 2px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; }
+  .dir-SHORT { padding: 3px 10px; background: rgba(139,42,42,.12);  color: #7a1f1f; border: 1px solid #7a1f1f; border-radius: 2px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; }
+  .trade-type-badge { padding: 3px 8px; background: rgba(5,28,44,.06); color: var(--mck-navy); border: 1px solid var(--mck-navy); border-radius: 2px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; }
+  .trade-body  { padding: 22px 0; }
+  .trade-meta  { display: flex; gap: 36px; flex-wrap: wrap; margin-bottom: 22px; }
+  .meta-item   { font-size: 13px; font-family: var(--font-serif); }
+  .meta-label  { font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.5px; color: var(--mck-navy); text-transform: uppercase; display: block; margin-bottom: 4px; }
+
+  /* ── Market Snapshot ── */
+  .market-snapshot {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg-card);
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .snapshot-tick {
+    flex: 1;
+    min-width: 130px;
+    padding: 16px 20px;
+    border-right: 1px solid var(--border);
+  }
+  .snapshot-tick:last-child { border-right: none; }
+  .snapshot-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--mck-blue);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .snapshot-price {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .snapshot-change-pos  { color: var(--green); font-family: var(--font-sans); font-size: 12px; }
+  .snapshot-change-neg  { color: var(--red);   font-family: var(--font-sans); font-size: 12px; }
+  .snapshot-change-flat { color: var(--text-muted); font-family: var(--font-sans); font-size: 12px; }
+
+  /* ── Overlay ── */
+  .overlay-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 16px; break-inside: avoid; page-break-inside: avoid; }
+  .overlay-box  { background: var(--bg-accent); border: 1px solid var(--border); border-radius: 4px; padding: 14px; break-inside: avoid; page-break-inside: avoid; }
+  .overlay-box-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; display: block; }
+
+  /* ── Reading list ── */
+  .reading-item { padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 16px; align-items: flex-start; break-inside: avoid; page-break-inside: avoid; }
+  .reading-item:last-child { border-bottom: none; }
+  .reading-priority { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; margin-top: 2px; }
+  .pri-ESSENTIAL    { color: var(--mck-blue);         }
+  .pri-RECOMMENDED  { color: var(--mck-blue);         }
+  .pri-SUPPLEMENTARY{ color: var(--text-muted);   }
+  .reading-content  { flex: 1; }
+  .reading-title    { font-weight: 600; color: var(--text-primary); margin-bottom: 3px; font-size: 14px; }
+  .reading-source   { font-size: 11px; color: var(--text-muted); font-family: var(--font-sans); margin-bottom: 6px; }
+  .reading-rel      { font-size: 13px; color: var(--text-secondary); font-family: var(--font-sans); }
+
+  /* ── Book list ── */
+  .book-item { padding: 14px 22px; border-bottom: 1px solid var(--border); break-inside: avoid; page-break-inside: avoid; }
+  .book-item:last-child { border-bottom: none; }
+  .book-category { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--mck-blue); margin-bottom: 4px; }
+  .book-title  { font-weight: 600; color: var(--text-primary); font-size: 14px; margin-bottom: 2px; }
+  .book-author { font-size: 12px; color: var(--text-muted); font-family: var(--font-sans); margin-bottom: 5px; }
+
+  /* ── Upcoming earnings cards ── */
+  .earnings-card-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    flex-wrap: wrap; gap: 6px;
+    border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 12px;
+  }
+  .earnings-company      { font-weight: 600; font-size: 1.05em; color: var(--text-primary); }
+  .earnings-ticker-plain { font-size: 0.88em; font-weight: 600; color: var(--mck-blue); margin-left: 8px; }
+  .earnings-date-plain   { font-size: 0.85em; color: var(--text-muted); }
+  .earnings-tod {
+    display: inline-block; padding: 1px 6px; font-size: 0.78em;
+    font-family: var(--font-mono); letter-spacing: 0.5px;
+    color: var(--mck-navy); border: 1px solid var(--border); margin-left: 6px;
+  }
+  .earnings-est-row  { display: flex; gap: 28px; flex-wrap: wrap; margin-bottom: 10px; font-size: 0.9em; }
+  .earnings-est-item { display: flex; flex-direction: column; gap: 2px; }
+  .earnings-est-label { font-family: var(--font-sans); font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); }
+  .earnings-est-value { font-weight: 600; font-size: 1em; color: var(--text-primary); }
+  .earnings-section-label {
+    font-family: var(--font-sans); font-size: 9px; font-weight: 700;
+    letter-spacing: 0.5px; color: var(--mck-navy); text-transform: uppercase;
+    display: block; margin: 10px 0 3px;
+  }
+
+  /* ── Recent earnings cards ── */
+  .recent-card-beat { border-left: 3px solid var(--green) !important; padding-left: 16px; }
+  .recent-card-miss { border-left: 3px solid var(--red)   !important; padding-left: 16px; }
+  .earnings-badge-beat   { background: rgba(42,122,64,.10); color: var(--green); border: 1px solid var(--green); }
+  .earnings-badge-miss   { background: rgba(178,42,42,.10); color: var(--red);   border: 1px solid var(--red); }
+  .earnings-badge-inline { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
+  .earnings-badge {
+    display: inline-block; padding: 2px 9px; font-size: 0.72em; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px; vertical-align: middle;
+    margin-left: 8px; border-radius: 2px;
+  }
+  .earnings-beat  { color: var(--green); font-weight: 600; }
+  .earnings-miss  { color: var(--red);   font-weight: 600; }
+  .earnings-metrics-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    margin: 10px 0 12px; border: 1px solid var(--border);
+  }
+  .earnings-metric-cell {
+    padding: 8px 12px; border-right: 1px solid var(--border);
+  }
+  .earnings-metric-cell:last-child { border-right: none; }
+  .earnings-metric-label { font-family: var(--font-sans); font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted);
+    display: block; margin-bottom: 4px; }
+  .earnings-metric-actual { font-size: 1.05em; font-weight: 600; display: block; margin-bottom: 2px; }
+  .earnings-metric-vs     { font-size: 0.82em; color: var(--text-secondary); display: block; margin-bottom: 2px; }
+  .earnings-metric-surp   { font-size: 0.82em; font-weight: 600; display: block; }
+  .earnings-analysis      { font-size: 0.92em; margin: 0; }
+  .earnings-link          { font-size: 11px; color: var(--mck-blue); margin-top: 8px; display: inline-block; }
+
+  /* ── Quant analysis side-by-side grid ── */
+  .quant-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .quant-cell {
+    padding: 14px 20px 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .quant-cell:nth-child(even) {
+    padding-left: 20px;
+    padding-right: 0;
+    border-left: 1px solid var(--border);
+  }
+
+  /* ── Trade meta inline strip ── */
+  .trade-meta-strip  { display: flex; flex-wrap: wrap; align-items: center;
+    font-size: 13px; gap: 0; margin-bottom: 8px; }
+  .meta-strip-item   { white-space: nowrap; }
+  .meta-sep          { color: var(--border); margin: 0 10px; font-weight: 300; font-size: 14px; }
+  .trade-catalyst    { font-size: 13px; color: var(--text-secondary); margin-bottom: 18px;
+    font-family: var(--font-serif); }
+
+  /* ── Footer ── */
+  .briefing-footer {
+    text-align: center; padding: 40px 0 12px;
+    color: var(--text-muted); font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: 2px; border-top: 1px solid var(--border); margin-top: 56px;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 720px) {
+    .causal-flow  { flex-direction: column; }
+    .causal-connector { transform: rotate(90deg); padding: 6px 0; }
+    .scenario-grid { flex-direction: column; }
+    .overlay-grid { grid-template-columns: 1fr; }
+    .trade-meta   { flex-direction: column; gap: 10px; }
+  }
+
+  /* ── Print / PDF (McKinsey style) ── */
+  @media print {
+    @page {
+      margin: 20mm 22mm 22mm 22mm;
+      size: A4;
+    }
+
+    /* Base reset */
+    *, *::before, *::after {
+      color: #000000 !important;
+      background: none !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      text-shadow: none !important;
+    }
+
+    body {
+      font-family: Georgia, 'Times New Roman', serif !important;
+      background: #ffffff;
+      font-size: 10pt;
+      line-height: 1.35;
+      padding: 0;
+      max-width: none;
+      color: #000;
+    }
+
+    /* Headers use Arial for visual hierarchy */
+    h2, h3, .label, .snapshot-label, .meta-label, .overlay-box-label,
+    .trade-ticker, .cal-table th, .reading-priority, .book-category,
+    .causal-node-label, .section-label, .classification-banner,
+    .briefing-date, .epigraph-attribution {
+      font-family: Arial, Helvetica, sans-serif !important;
+    }
+
+    /* ── Hidden in PDF ── */
+    .print-hide,
+    .theme-rank,
+    .trade-type-badge,
+    .badge,
+    .classification-banner,
+    .briefing-footer,
+    hr.divider { display: none !important; }
+
+    /* ── Tags (entities / geographies / instruments) ── */
+    .tags {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 4pt !important;
+      margin-top: 4pt !important;
+      margin-bottom: 4pt !important;
+    }
+    .tag {
+      font-family: Arial, Helvetica, sans-serif !important;
+      font-size: 8pt !important;
+      font-weight: 400 !important;
+      padding: 2pt 6pt !important;
+      background: none !important;
+      border: 1pt solid #aaaaaa !important;
+      color: #000000 !important;
+    }
+
+    /* ── Document title block ── */
+    .briefing-header {
+      text-align: left;
+      border-bottom: 4px solid var(--mck-navy);
+      padding-bottom: 16px;
+      margin-bottom: 48px;
+    }
+    .briefing-title {
+    font-family: var(--font-sans);
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--mck-navy);
+    }
+    .briefing-date {
+      font-size: 9pt;
+      font-weight: normal;
+      color: #555 !important;
+      margin-top: 3pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5pt;
+    }
+
+    /* ── Epigraph ── */
+    .epigraph {
+      border: none !important;
+      border-left: 3pt solid #003366 !important;
+      padding: 3pt 0 3pt 12pt !important;
+      margin: 12pt 0 12pt 0 !important;
+      font-style: italic;
+      font-size: 9.5pt;
+      color: #222 !important;
+    }
+    .epigraph-attribution {
+      font-style: normal;
+      font-size: 8.5pt;
+      color: #555 !important;
+      margin-top: 3pt;
+    }
+
+    /* ── Section labels (McKinsey small-cap rule) ── */
+    .section-label {
+      display: block !important;
+      font-size: 7pt !important;
+      font-weight: bold !important;
+      color: #003366 !important;
+      text-transform: uppercase !important;
+      letter-spacing: 1.2pt !important;
+      margin-bottom: 2pt !important;
+    }
+
+    /* ── Section headers ── */
+    h2 {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #003366 !important;
+      border: none !important;
+      border-top: 2pt solid #003366 !important;
+      padding: 5pt 0 2pt 0 !important;
+      margin: 18pt 0 6pt 0 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.4pt;
+      break-after: avoid;
+    }
+
+    h3 {
+      font-family: Arial, Helvetica, sans-serif !important;
+      font-size: 12pt;
+      font-weight: 700 !important;
+      color: #000 !important;
+      margin: 9pt 0 3pt 0;
+      border-bottom: 0.75pt solid #ccc !important;
+      padding-bottom: 2pt !important;
+      break-after: avoid;
+    }
+
+    /* ── Strip card chrome — flat document layout ── */
+    .card, .card-gold, .card-red,
+    .red-cell-card, .overlay-box,
+    .trade-card, .trade-header, .trade-body {
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      background: none !important;
+    }
+
+    /* Thin ruled separator between entries */
+    .card, .card-gold {
+      border-top: 0.5pt solid #ccc !important;
+      padding-top: 7pt !important;
+      margin-bottom: 7pt !important;
+    }
+    .card-red, .red-cell-card {
+      border-top: 2pt solid #aa0000 !important;
+      padding-top: 7pt !important;
+      margin-bottom: 7pt !important;
+    }
+
+    /* ── Trade cards ── */
+    .trade-card {
+      border-top: 1.5pt solid #003366 !important;
+      padding-top: 7pt !important;
+      margin-bottom: 14pt !important;
+    }
+    .trade-header {
+      border-bottom: 0.5pt solid #ccc !important;
+      padding-bottom: 4pt !important;
+      margin-bottom: 5pt !important;
+      display: flex !important;
+      align-items: baseline !important;
+      flex-wrap: wrap !important;
+      gap: 5pt !important;
+    }
+    .trade-badges {
+      display: flex !important;
+      align-items: baseline !important;
+      flex-wrap: wrap !important;
+      gap: 5pt !important;
+    }
+    .trade-last-price {
+      font-family: 'Courier New', Courier, monospace !important;
+      font-size: 10pt !important;
+      font-weight: bold !important;
+      color: #000 !important;
+    }
+    .trade-ticker {
+      font-family: Arial, Helvetica, sans-serif !important;
+      font-size: 11pt;
+      font-weight: bold;
+      color: #003366 !important;
+    }
+    .trade-ticker-name {
+      font-family: Arial, Helvetica, sans-serif !important;
+      font-size: 10pt;
+      font-weight: 400;
+      color: #444 !important;
+    }
+    .trade-ticker-sep { color: #aaa !important; }
+    .dir-LONG, .dir-SHORT {
+      font-size: 8.5pt;
+      font-weight: bold;
+      border: none !important;
+      padding: 0 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.5pt;
+    }
+    .trade-meta {
+      margin-bottom: 6pt !important;
+    }
+    .meta-label {
+      font-weight: bold;
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3pt;
+      color: #555 !important;
+      display: block;
+    }
+    .meta-item {
+      font-size: 9pt;
+      display: block;
+      margin-bottom: 2pt !important;
+    }
+    p {
+      margin-bottom: 5pt !important;
+      margin-top: 0 !important;
+    }
+
+    /* ── Causal table ── */
+    .causal-table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      margin: 6pt 0 !important;
+      border: 0.5pt solid #aaaaaa !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .causal-cell { border: 0.5pt solid #aaaaaa !important; vertical-align: top !important; width: 31% !important; }
+    .causal-cell-label {
+      font-family: Arial, sans-serif !important;
+      font-size: 7pt !important;
+      font-weight: bold !important;
+      color: #003366 !important;
+      background: #f0f0f0 !important;
+      padding: 3pt 7pt !important;
+      border-bottom: 0.5pt solid #aaaaaa !important;
+      display: block !important;
+    }
+    .causal-cell-body {
+      font-family: Georgia, serif !important;
+      font-size: 8.5pt !important;
+      padding: 6pt 8pt !important;
+      color: #000 !important;
+      display: block !important;
+      line-height: 1.4 !important;
+    }
+    .causal-arrow-cell {
+      text-align: center !important;
+      vertical-align: middle !important;
+      font-size: 10pt !important;
+      color: #003366 !important;
+      background: #f0f0f0 !important;
+      padding: 0 2pt !important;
+      border: none !important;
+    }
+    /* ── Scenario table ── */
+    .scenario-table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      margin: 4pt 0 0 !important;
+      border: 0.5pt solid #aaaaaa !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .scenario-table thead th {
+      font-family: Arial, sans-serif !important;
+      font-size: 7pt !important;
+      background: #f0f0f0 !important;
+      padding: 3pt 6pt !important;
+      border-bottom: 0.5pt solid #aaaaaa !important;
+      border-right: 0.5pt solid #aaaaaa !important;
+    }
+    .scenario-table td {
+      font-size: 8.5pt !important;
+      padding: 5pt 7pt !important;
+      border-right: 0.5pt solid #aaaaaa !important;
+      vertical-align: middle !important;
+    }
+    .scenario-table tbody tr { border-bottom: 0.5pt solid #dddddd !important; }
+    .scenario-price { font-size: 9pt !important; font-weight: 600 !important; text-align: center !important; }
+    .scenario-prob  { font-size: 9pt !important; color: #444 !important; text-align: center !important; }
+    .scenario-logic { font-family: Georgia, serif !important; font-size: 8.5pt !important; line-height: 1.35 !important; }
+    .scenario-ev { font-size: 8pt !important; font-weight: bold !important; padding: 3pt 7pt !important; border-top: 0.5pt solid #aaa !important; margin-bottom: 5pt !important; }
+
+    /* ── Data-point lists ── */
+    .dp-list li {
+      font-size: 10pt;
+      font-family: Georgia, 'Times New Roman', serif !important;
+      border: none !important;
+      padding: 1.5pt 0 !important;
+      color: #000 !important;
+      display: flex !important;
+      align-items: baseline !important;
+      gap: 6pt !important;
+    }
+    .dp-list li::before { color: #003366 !important; font-size: 6pt !important; flex-shrink: 0 !important; position: static !important; }
+
+    /* ── Transmission overlays: single column ── */
+    .overlay-grid {
+      display: block !important;
+    }
+    .overlay-box {
+      border-top: 0.5pt solid #ccc !important;
+      padding-top: 5pt !important;
+      margin-bottom: 6pt;
+    }
+    .overlay-box-label {
+      font-weight: bold;
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.8pt;
+      color: #003366 !important;
+      display: block;
+      margin-bottom: 2pt;
+    }
+
+    /* ── Red cell ── */
+    .redcell-header { display: flex; flex-wrap: wrap; gap: 6pt; align-items: flex-start; }
+    .redcell-prob-badge {
+      font-size: 8pt !important;
+      font-weight: bold !important;
+      color: #aa0000 !important;
+      border: 1pt solid #aa0000 !important;
+      background: none !important;
+      padding: 2pt 6pt !important;
+    }
+
+    /* ── Calendar table (McKinsey ruled table) ── */
+    .cal-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 9pt;
+    }
+    .cal-table th {
+    background: var(--mck-navy);
+    color: #ffffff;
+    border: none;
+    }
+    .cal-table td {
+      border: none !important;
+      border-bottom: 0.5pt solid #e0e0e0 !important;
+      padding: 3pt 6pt !important;
+      color: #000 !important;
+    }
+    .cal-date { font-weight: bold; color: #003366 !important; white-space: nowrap; }
+    .cal-time { font-size: 8pt; color: #555 !important; display: block; margin-top: 1pt; }
+    .cal-prev, .cal-fcst { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .cal-fcst { font-weight: 600; }
+    .cal-miss  { color: #c0392b !important; }
+    .cal-beat  { color: #1a7a3e !important; }
+
+    /* ── Earnings cards (print) ── */
+    .earnings-card-header {
+      display: flex !important; justify-content: space-between !important;
+      border-bottom: 0.5pt solid #ccc !important;
+      padding-bottom: 5pt !important; margin-bottom: 6pt !important;
+    }
+    .earnings-company     { font-weight: bold !important; font-size: 10pt !important; }
+    .earnings-ticker-plain { font-size: 8.5pt !important; color: #003366 !important; margin-left: 6pt !important; }
+    .earnings-date-plain  { font-size: 8pt !important; color: #555 !important; }
+    .earnings-tod         { font-size: 7pt !important; border: 0.5pt solid #999 !important; padding: 0 3pt !important; margin-left: 4pt !important; }
+    .earnings-est-row     { display: flex !important; gap: 18pt !important; margin-bottom: 6pt !important; }
+    .earnings-est-label   { font-size: 7pt !important; font-weight: bold !important; color: #555 !important; display: block !important; }
+    .earnings-est-value   { font-size: 9.5pt !important; font-weight: bold !important; }
+    .earnings-section-label { font-size: 7.5pt !important; font-weight: bold !important; color: #003366 !important; display: block !important; margin: 5pt 0 2pt !important; }
+    .earnings-badge {
+      display: inline-block !important; padding: 1pt 5pt !important;
+      font-size: 7pt !important; font-weight: bold !important;
+      text-transform: uppercase !important; letter-spacing: 0.5pt !important;
+      border: 0.5pt solid !important; margin-left: 5pt !important;
+    }
+    .earnings-badge-beat   { color: #1a7a3e !important; border-color: #1a7a3e !important; }
+    .earnings-badge-miss   { color: #c0392b !important; border-color: #c0392b !important; }
+    .earnings-badge-inline { color: #666 !important; border-color: #999 !important; }
+    .earnings-beat  { color: #1a7a3e !important; font-weight: bold !important; }
+    .earnings-miss  { color: #c0392b !important; font-weight: bold !important; }
+    .recent-card-beat { border-left: 2pt solid #1a7a3e !important; padding-left: 8pt !important; }
+    .recent-card-miss { border-left: 2pt solid #c0392b !important; padding-left: 8pt !important; }
+    .earnings-metrics-grid {
+      display: grid !important; grid-template-columns: 1fr 1fr !important;
+      border: 0.5pt solid #aaa !important; margin: 5pt 0 8pt !important;
+    }
+    .earnings-metric-cell { padding: 5pt 8pt !important; border-right: 0.5pt solid #aaa !important; }
+    .earnings-metric-cell:last-child { border-right: none !important; }
+    .earnings-metric-label  { font-size: 7pt !important; font-weight: bold !important; color: #555 !important; display: block !important; margin-bottom: 2pt !important; }
+    .earnings-metric-actual { font-size: 9pt !important; font-weight: bold !important; display: block !important; }
+    .earnings-metric-vs     { font-size: 8pt !important; color: #555 !important; display: block !important; }
+    .earnings-metric-surp   { font-size: 8pt !important; font-weight: bold !important; display: block !important; }
+    .earnings-analysis      { font-size: 8.5pt !important; margin: 0 !important; line-height: 1.35 !important; }
+    .earnings-link          { display: none !important; }
+
+    /* ── Trade meta inline (print) ── */
+    .trade-meta-strip { display: flex !important; flex-wrap: wrap !important; gap: 0 !important; font-size: 8.5pt !important; margin-bottom: 5pt !important; border-bottom: 0.5pt solid #ccc !important; padding-bottom: 4pt !important; }
+    .meta-strip-item  { white-space: nowrap !important; }
+    .meta-sep         { color: #aaa !important; margin: 0 6pt !important; }
+    .trade-catalyst   { font-size: 8.5pt !important; margin-bottom: 8pt !important; }
+
+    /* ── Quant grid (print) ── */
+    .quant-grid {
+      display: grid !important; grid-template-columns: 1fr 1fr !important;
+      border-top: 0.5pt solid #aaa !important; margin-top: 8pt !important;
+    }
+    .quant-cell {
+      padding: 7pt 12pt 7pt 0 !important;
+      border-bottom: 0.5pt solid #ddd !important;
+      font-size: 8.5pt !important;
+    }
+    .quant-cell:nth-child(even) {
+      padding-left: 12pt !important; padding-right: 0 !important;
+      border-left: 0.5pt solid #aaa !important;
+    }
+
+    /* ── Reading list ── */
+    .reading-item {
+      border: none !important;
+      border-top: 0.5pt solid #ccc !important;
+      padding: 5pt 0 !important;
+      display: block !important;
+    }
+    .reading-priority {
+      font-weight: bold;
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5pt;
+      color: #003366 !important;
+      margin-bottom: 2pt;
+    }
+    .reading-title  { font-weight: bold; font-size: 9.5pt; }
+    .reading-source { font-style: italic; font-size: 8.5pt; color: #555 !important; }
+    .reading-rel    { font-size: 9pt; }
+
+    /* ── Section spacing ── */
+    .section-wrapper { margin-bottom: 14pt; }
+
+    /* ── Page-break control ── */
+    h2 { break-before: auto; break-after: avoid; }
+    h3  { break-after: avoid; }
+    .trade-card, .red-cell-card, .reading-item { break-inside: avoid !important; page-break-inside: avoid !important; }
+    .card { break-inside: auto; }
+    p { orphans: 3; widows: 3; }
+
+    /* ── Market snapshot ── */
+    .market-snapshot {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      border: none !important;
+      border-bottom: 1.5pt solid #003366 !important;
+      padding-bottom: 6pt !important;
+      margin-bottom: 12pt !important;
+      background: none !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .snapshot-tick {
+      flex: 1;
+      border: none !important;
+      padding: 0 10pt 0 0 !important;
+      background: none !important;
+    }
+    .snapshot-label {
+      font-size: 9pt !important;
+      font-weight: bold !important;
+      color: #003366 !important;
+      letter-spacing: 0.4pt !important;
+      display: block !important;
+      margin-bottom: 2pt !important;
+    }
+    .snapshot-price {
+      font-size: 11pt !important;
+      font-weight: bold !important;
+      color: #000 !important;
+      display: block !important;
+      margin-bottom: 1pt !important;
+    }
+    .snapshot-change-pos {
+      font-size: 8pt !important;
+      color: #2d7a2d !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .snapshot-change-neg {
+      font-size: 8pt !important;
+      color: #cc0000 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .snapshot-change-flat { font-size: 8pt !important; color: #555 !important; }
+
+    /* ── Book list ── */
+    .book-item {
+      border: none !important;
+      border-top: 0.5pt solid #ccc !important;
+      padding: 4pt 0 !important;
+      display: block !important;
+    }
+    .book-category {
+      font-size: 7pt !important;
+      font-weight: bold !important;
+      color: #003366 !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.4pt !important;
+    }
+    .book-title  { font-weight: bold; font-size: 9.5pt; }
+    .book-author { font-style: italic; font-size: 8.5pt; color: #555 !important; }
+    .book-rel    { font-size: 9pt; }
+  }
+</style>
+</head>
+<body>
+<div class='briefing-header'><div class='briefing-title'>Daily Brief</div><div class='briefing-date'>MONDAY, 23 MARCH 2026</div></div>
+<div class='market-snapshot'><div class='snapshot-tick'><div class='snapshot-label'>WTI CRUDE</div><div class='snapshot-price'>82.14</div><span class='snapshot-change-neg'>-0.73%</span></div><div class='snapshot-tick'><div class='snapshot-label'>10Y YIELD</div><div class='snapshot-price'>4.312%</div><span class='snapshot-change-pos'>+0.04%</span></div><div class='snapshot-tick'><div class='snapshot-label'>DXY INDEX</div><div class='snapshot-price'>104.37</div><span class='snapshot-change-pos'>+0.21%</span></div><div class='snapshot-tick'><div class='snapshot-label'>S&amp;P 500</div><div class='snapshot-price'>5,218.19</div><span class='snapshot-change-pos'>+0.38%</span></div></div>
+<div class='section-wrapper'><h2>Intelligence Summary</h2><p style='color:var(--text-secondary);'>March 25, 2026 intelligence presents three converging risk vectors. US-China tech decoupling accelerated with the March 14 BIS Entity List expansion targeting EDA vendors — chokepoints unresolvable sub-five-years. The ECB faces its most challenging environment since June 2022 with Governing Council divisions and Italian fiscal slippage compounding spread-widening risk.
+
+Primary tail risk: three PLAAF median-line crossings and DF-17 deployment in Fujian constitute a historically anomalous tempo increase. Rotate from Taiwan-exposed tech into defense primes and semiconductor equipment manufacturers with US fab concentration.</p></div>
+<blockquote class='epigraph'>The art of war is of vital importance to the state. It is a matter of life and death, a road either to safety or to ruin.<span class='epigraph-attribution'>&mdash; Sun Tzu, The Art of War, c. 500 BC</span></blockquote>
+<div class='section-wrapper' id='forward-calendar'><h2>Forward Calendar</h2><div class='card' style='padding:0;overflow:hidden;'><table class='cal-table'><thead><tr><th>Date / Time</th><th>Release</th><th>Authority</th><th>Previous</th><th>Forecast</th><th>Market Relevance</th></tr></thead><tbody><tr><td class='cal-date'>1 Apr 2026<span class='cal-time'>08:30 ET</span></td><td>Retail Sales MoM</td><td style='font-size:0.85em;color:var(--text-secondary);'>U.S. Census Bureau</td><td class='cal-prev'>-0.2%</td><td class='cal-fcst'>+0.3%</td><td>XLY and USD pairs (EUR/USD, USD/JPY) are primary movers. A beat reinforces Fed higher-for-longer, compressing TLT and lifting financials. A miss — after the weak February print — accelerates Q3 rate-cut pricing, supporting duration and pressuring the dollar.</td></tr><tr><td class='cal-date'>3 Apr 2026<span class='cal-time'>08:30 ET</span></td><td>Non-Farm Payrolls</td><td style='font-size:0.85em;color:var(--text-secondary);'>Bureau of Labor Statistics</td><td class='cal-prev'>-92K</td><td class='cal-fcst'>+50K</td><td>Most market-sensitive release of the week. Recovery toward +50K reduces recession pricing. A second negative print re-prices Fed funds to 3+ cuts, bids TLT, pressures USD/JPY. Large beat reads as stagflation risk — asymmetric equity impact.</td></tr><tr><td class='cal-date'>10 Apr 2026<span class='cal-time'>13:45 ET</span></td><td>ECB Rate Decision</td><td style='font-size:0.85em;color:var(--text-secondary);'>European Central Bank</td><td class='cal-prev'>+2.50%</td><td class='cal-fcst'>+2.25%</td><td>EUR/USD, Bund futures, and European bank equities are primary instruments. 25bp cut is consensus; forward guidance pace is the variable. Hawkish hold lifts EUR/USD, compresses EWG. Accelerated cut path pressures euro, supports exporters.</td></tr></tbody></table></div></div>
+<div class='section-wrapper' id='earnings-upcoming'><h2>Earnings Calendar</h2><div class='card' style='break-inside:avoid;page-break-inside:avoid;'><div class='earnings-card-header'><div><span class='earnings-company'>NVIDIA Corporation</span><span class='earnings-ticker-plain'>NVDA</span></div><span class='earnings-date-plain'>2 Apr 2026&ensp;<span class='earnings-tod'>AMC</span></span></div><div class='earnings-est-row'><div class='earnings-est-item'><span class='earnings-est-label'>EPS Est.</span><span class='earnings-est-value'>$5.72</span></div><div class='earnings-est-item'><span class='earnings-est-label'>Revenue Est.</span><span class='earnings-est-value'>$43.1B</span></div></div><span class='earnings-section-label'>Theme Relevance</span><p class='earnings-analysis'>Directly connected to the AI infrastructure buildout theme: NVIDIA&#x27;s data center revenue trajectory is the primary observable for validating or invalidating the semiconductor capex cycle. A guidance miss would compress valuations across the AI supply chain and pressure the strategic LONG thesis on semiconductor equipment.</p><span class='earnings-section-label' style='margin-top:8px;'>Watch</span><p class='earnings-analysis'>Data center revenue vs. $40.8B consensus, Blackwell ramp execution, and gross margin guidance (consensus 73-75%). A sequential data center decline would pressure SMCI, AMAT, and ASML in sympathy; upside surprise extends the AI trade.</p><a href='https://seekingalpha.com/symbol/NVDA/earnings' class='earnings-link' target='_blank'>Seeking Alpha Earnings &#8594;</a></div><div class='card' style='break-inside:avoid;page-break-inside:avoid;'><div class='earnings-card-header'><div><span class='earnings-company'>JPMorgan Chase &amp; Co.</span><span class='earnings-ticker-plain'>JPM</span></div><span class='earnings-date-plain'>14 Apr 2026&ensp;<span class='earnings-tod'>BMO</span></span></div><div class='earnings-est-row'><div class='earnings-est-item'><span class='earnings-est-label'>EPS Est.</span><span class='earnings-est-value'>$4.38</span></div><div class='earnings-est-item'><span class='earnings-est-label'>Revenue Est.</span><span class='earnings-est-value'>$44.1B</span></div></div><span class='earnings-section-label'>Theme Relevance</span><p class='earnings-analysis'>Serves as the primary read-through on credit quality and NII sensitivity under the current rate path. JPMorgan&#x27;s commercial real estate commentary and reserve-build trajectory will directly inform the macro credit stress theme and potential position adjustments in financials.</p><span class='earnings-section-label' style='margin-top:8px;'>Watch</span><p class='earnings-analysis'>Full-year NII guidance vs. $91B consensus, FICC trading revenue, and CRE loan loss reserve commentary. A guidance cut on NII would pressure KRE and XLF; strong trading revenue would benefit GS and MS in sympathy.</p><a href='https://seekingalpha.com/symbol/JPM/earnings' class='earnings-link' target='_blank'>Seeking Alpha Earnings &#8594;</a></div><div class='card' style='break-inside:avoid;page-break-inside:avoid;'><div class='earnings-card-header'><div><span class='earnings-company'>Alphabet Inc.</span><span class='earnings-ticker-plain'>GOOGL</span></div><span class='earnings-date-plain'>23 Apr 2026&ensp;<span class='earnings-tod'>AMC</span></span></div><div class='earnings-est-row'><div class='earnings-est-item'><span class='earnings-est-label'>EPS Est.</span><span class='earnings-est-value'>$2.01</span></div><div class='earnings-est-item'><span class='earnings-est-label'>Revenue Est.</span><span class='earnings-est-value'>$89.3B</span></div></div><span class='earnings-section-label'>Theme Relevance</span><p class='earnings-analysis'>The AI monetization vs. disruption question is unresolved in this briefing&#x27;s tech sector themes. Alphabet&#x27;s Search revenue trajectory tests whether AI Overviews cannibalize core ad revenue — the answer determines sector rotation direction between established tech and AI-native challengers.</p><span class='earnings-section-label' style='margin-top:8px;'>Watch</span><p class='earnings-analysis'>Search revenue growth vs. AI Overviews cannibalization risk, GCP growth rate vs. AWS/Azure, and capex commentary for AI infrastructure. A Search miss reopens the AI disruption discount thesis and would pressure META in sympathy.</p><a href='https://seekingalpha.com/symbol/GOOGL/earnings' class='earnings-link' target='_blank'>Seeking Alpha Earnings &#8594;</a></div></div>
+<div class='section-wrapper' id='earnings-recent'><h2>Recent Earnings</h2><div class='card recent-card-miss' style='break-inside:avoid;page-break-inside:avoid;'><div class='earnings-card-header'><div><span class='earnings-company'>FedEx Corporation</span><span class='earnings-ticker-plain'>FDX</span><span class='earnings-badge earnings-badge-miss'>Miss</span></div><span class='earnings-date-plain'>22 Mar 2026</span></div><p style='font-size:0.88em;color:var(--text-muted);margin:0 0 10px;font-family:var(--font-serif);'>FedEx is a global logistics company offering express, ground, and freight services across 220+ countries, primarily serving time-definite B2B and e-commerce shipments.</p><div class='earnings-metrics-grid'><div class='earnings-metric-cell'><span class='earnings-metric-label'>EPS</span><span class='earnings-metric-actual earnings-miss'>$3.51</span><span class='earnings-metric-vs'>est. $3.88</span><span class='earnings-metric-surp earnings-miss'>-$0.37 miss (-9.5%)</span></div><div class='earnings-metric-cell'><span class='earnings-metric-label'>Revenue</span><span class='earnings-metric-actual earnings-miss'>$21.6B</span><span class='earnings-metric-vs'>est. $22.1B</span><span class='earnings-metric-surp earnings-miss'>-$0.5B miss (-2.3%)</span></div></div><p class='earnings-analysis'>Volume shortfall reflects B2B shipment density deterioration consistent with the February ISM PMI contraction. Management cut full-year guidance 8% on persistent industrial demand softness and ground segment yield compression. Read-through is negative for UPS and XPO. The miss implies consumer spending resilience in Q4 GDP estimates may be overstated — FDX volume leads goods consumption by 4-6 weeks.</p><a href='https://seekingalpha.com/symbol/FDX/earnings' class='earnings-link' target='_blank'>Seeking Alpha Earnings &#8594;</a></div><div class='card recent-card-beat' style='break-inside:avoid;page-break-inside:avoid;'><div class='earnings-card-header'><div><span class='earnings-company'>Nike, Inc.</span><span class='earnings-ticker-plain'>NKE</span><span class='earnings-badge earnings-badge-beat'>Beat</span></div><span class='earnings-date-plain'>23 Mar 2026</span></div><p style='font-size:0.88em;color:var(--text-muted);margin:0 0 10px;font-family:var(--font-serif);'>Nike designs and sells athletic footwear, apparel, and equipment under the Nike, Jordan, and Converse brands via direct-to-consumer and wholesale channels in 170+ countries.</p><div class='earnings-metrics-grid'><div class='earnings-metric-cell'><span class='earnings-metric-label'>EPS</span><span class='earnings-metric-actual earnings-beat'>$0.54</span><span class='earnings-metric-vs'>est. $0.29</span><span class='earnings-metric-surp earnings-beat'>+$0.25 beat (+86.2%)</span></div><div class='earnings-metric-cell'><span class='earnings-metric-label'>Revenue</span><span class='earnings-metric-actual earnings-beat'>$11.3B</span><span class='earnings-metric-vs'>est. $11.0B</span><span class='earnings-metric-surp earnings-beat'>+$0.3B beat (+2.7%)</span></div></div><p class='earnings-analysis'>Beat driven by DTC channel mix shift and inventory liquidation — gross margin +150bp to 44.5%. Greater China revenues +7% YoY is the most market-relevant data point against consensus weakness expectations. Results reduce downside risk for LULU and On Holdings. However, futures orders -3% globally suggest Q3 revenue visibility remains limited and the beat may not sustain multiple expansion.</p><a href='https://seekingalpha.com/symbol/NKE/earnings' class='earnings-link' target='_blank'>Seeking Alpha Earnings &#8594;</a></div></div>
+<div class='section-wrapper' id='adverse-scenario'>
+<h2>Red Cell</h2>
+<div class='card card-red'><div class='redcell-header'><h3>TSMC Operational Disruption — Cross-Strait Kinetic Event</h3><span class='redcell-prob-badge'>P: Low (3–7%)</span></div><p>A PLAAF or PLAN exercise escalation resulting in even a temporary disruption to TSMC&#x27;s Hsinchu or Tainan fab operations would trigger an immediate repricing of the global technology supply chain. Insurance markets would suspend coverage; shipping lanes would face force majeure declarations within hours of any confirmed kinetic exchange. The 2022 Ukraine invasion commodity shock provides an imperfect but structurally analogous market reaction template.</p><span class='label' style='margin-top:12px;'>Trigger Conditions</span><ul class='dp-list'><li>PLAAF incursion crossing Taiwan&#x27;s 12nm territorial airspace</li><li>PLAN live-fire exercise announced within 50nm of Hsinchu</li><li>Emergency evacuation order issued for any TSMC fab facility</li></ul><div style='margin-top:12px;padding:12px;background:var(--bg-accent);border-radius:3px;break-inside:avoid;page-break-inside:avoid;'><span class='label' style='color:var(--red);'>Market Implications</span><p style='margin:4px 0 0;'>Nasdaq -15–25% in first session; NASDAQ:TSM ADR halted; semiconductor ETF (NASDAQ:SOXX) circuit breaker probable. Safe-haven flows into US Treasuries, JPY, CHF. WTI crude +$8–12 on Strait shipping insurance suspension.</p></div></div>
+<div class='card card-red'><div class='redcell-header'><h3>Abrupt ECB Communication Failure — Spread Contagion</h3><span class='redcell-prob-badge'>P: Low-Medium (8–14%)</span></div><p>An ambiguous post-meeting press conference — or a leaked dissent count of ≥5 hawkish votes — could trigger rapid BTP spread widening analogous to the June 2022 fragmentation episode. Transmission runs through leveraged Italian bank balance sheets where BTP holdings represent ~8.2% of total assets; a 50bp spread overshoot activates regulatory capital ratio monitoring.</p><span class='label' style='margin-top:12px;'>Trigger Conditions</span><ul class='dp-list'><li>BTP-Bund spread exceeds 175bps intraday post-ECB decision</li><li>Leaked Governing Council vote showing ≥5 hawkish dissents</li><li>Moody&#x27;s negative outlook alert on Italian sovereign debt</li></ul><div style='margin-top:12px;padding:12px;background:var(--bg-accent);border-radius:3px;break-inside:avoid;page-break-inside:avoid;'><span class='label' style='color:var(--red);'>Market Implications</span><p style='margin:4px 0 0;'>EUR/USD break below 1.0550; Italian bank CDS (EPA:ISP, EPA:UCG) widening 40–60bps; ECB emergency TPI deployment probable within 48 hours, stabilizing BTP at cost of credibility damage to the easing cycle narrative.</p></div></div>
+</div>
+<div class='section-wrapper' id='priority-themes'>
+<h2>Priority Intelligence Themes</h2>
+<div class='card card-gold'><div style='display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px;'><h3 style='margin-bottom:0;border-bottom:none;flex:1;'>US-China Semiconductor Decoupling Accelerates</h3><span class='theme-rank'>01</span></div><p>The March 2026 BIS Entity List expansion represents the most consequential tightening of export controls since the October 2023 rules. The affected firms—primarily EDA software vendors and advanced packaging service providers—represent chokepoints in China&#x27;s domestic substitution strategy that cannot be circumvented on a sub-five-year timeline. The market pricing of this risk remains materially insufficient; consensus sell-side models do not adequately weight the second-order capex reduction that Chinese hyperscalers will be forced to implement as their domestic GPU roadmaps slip further behind the frontier. (Commerce Dept., Bloomberg)</p><span class='label' style='margin-top:14px;'>Intelligence Data Points</span><ul class='dp-list'><li>37 new Chinese entities added to BIS Entity List, 14 March 2026 (Commerce Dept.)</li><li>Gallium spot +18% MoM to $312/kg post-export license suspensions (Bloomberg)</li><li>SMIC HiSilicon 7nm yield confirmed below 55% by MIIT sources (SCMP)</li><li>TSMC N3 capacity 94% booked through Q3 2026; no Chinese customer allocation (TSMC)</li></ul><table class='causal-table'><tr><td class='causal-cell'><span class='causal-cell-label'>Signal</span><span class='causal-cell-body'>BIS Entity List expansion targeting EDA and advanced packaging</span></td><td class='causal-arrow-cell'>&#8594;</td><td class='causal-cell'><span class='causal-cell-label'>Mechanism</span><span class='causal-cell-body'>Chinese IC design houses lose access to Synopsys/Cadence EDA suites, forcing multi-year re-platforming that extends the frontier gap from 2 generations to 3–4 generations by 2028.</span></td><td class='causal-arrow-cell'>&#8594;</td><td class='causal-cell'><span class='causal-cell-label'>Market Impact</span><span class='causal-cell-body'>Long NASDAQ:AMAT, NASDAQ:LRCX (domestic toolmakers gaining share); Short Chinese ADR semiconductor basket; long NASDAQ:ARM (architecture licensing revenues insulated from controls).</span></td></tr></table><span class='label' style='margin-top:12px;'>Affected Instruments</span><div class='tags'><span class='tag'>NASDAQ:NVDA</span><span class='tag'>NASDAQ:AMAT</span><span class='tag'>NASDAQ:LRCX</span><span class='tag'>NASDAQ:TSM</span><span class='tag'>NASDAQ:SOXX</span></div><span class='label' style='margin-top:8px;'>Entities</span><div class='tags'><span class='tag'>Bureau of Industry and Security</span><span class='tag'>Nvidia</span><span class='tag'>TSMC</span><span class='tag'>SMIC</span><span class='tag'>Synopsys</span><span class='tag'>Cadence</span></div><span class='label' style='margin-top:8px;'>Geographies</span><div class='tags'><span class='tag'>United States</span><span class='tag'>China</span><span class='tag'>Taiwan</span><span class='tag'>South Korea</span></div></div>
+<div class='card card-gold'><div style='display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px;'><h3 style='margin-bottom:0;border-bottom:none;flex:1;'>ECB April Decision — Fragmentation Risk Premium Returns</h3><span class='theme-rank'>02</span></div><p>The re-emergence of BTP-Bund spread pressure—14bps in two sessions—reflects market concern that the ECB&#x27;s forward guidance credibility is being damaged by visible internal divisions ahead of the April decision. The proximate catalyst is Italian fiscal slippage: the Meloni government&#x27;s Q1 2026 deficit tracking at 3.8% of GDP versus a 3.0% target creates a structural narrative that peripheral spreads will widen faster than the ECB&#x27;s TPI can contain without an explicit conditionality framework. The June 2022 Fragmentation Crisis precedent is directly relevant. (FT, Bloomberg, ECB)</p><span class='label' style='margin-top:14px;'>Intelligence Data Points</span><ul class='dp-list'><li>BTP-Bund 10Y spread: 138bps, up 14bps in two sessions as of 20 March (Bloomberg)</li><li>ECB March PMI Composite: 49.3 vs. 50.1 consensus (S&amp;P Global)</li><li>Italian Q1 2026 deficit tracking: 3.8% GDP vs. 3.0% target (Italian MEF)</li><li>Lagarde omitted &#x27;sufficiently restrictive&#x27; from 17 March speech for first time (ECB)</li></ul><table class='causal-table'><tr><td class='causal-cell'><span class='causal-cell-label'>Signal</span><span class='causal-cell-body'>BTP-Bund spread widening concurrent with hawkish/dovish split in ECB communications</span></td><td class='causal-arrow-cell'>&#8594;</td><td class='causal-cell'><span class='causal-cell-label'>Mechanism</span><span class='causal-cell-body'>Fiscal slippage in Italy forces markets to price in higher TPI activation threshold, depressing peripheral bond demand and widening spreads faster than the easing cycle can offset.</span></td><td class='causal-arrow-cell'>&#8594;</td><td class='causal-cell'><span class='causal-cell-label'>Market Impact</span><span class='causal-cell-body'>Long EUR rates volatility (SRVIX); short Italian bank equities (EPA:ISP); long USD/EUR; consider BTP/Bund spread widener via futures.</span></td></tr></table><span class='label' style='margin-top:12px;'>Affected Instruments</span><div class='tags'><span class='tag'>NYSE:TLT</span><span class='tag'>EPA:ISP</span><span class='tag'>EPA:UCG</span><span class='tag'>EPA:BNP</span><span class='tag'>NYSE:EWI</span></div><span class='label' style='margin-top:8px;'>Entities</span><div class='tags'><span class='tag'>ECB</span><span class='tag'>Christine Lagarde</span><span class='tag'>Bundesbank</span><span class='tag'>Italian MEF</span><span class='tag'>Giorgia Meloni</span></div><span class='label' style='margin-top:8px;'>Geographies</span><div class='tags'><span class='tag'>Eurozone</span><span class='tag'>Italy</span><span class='tag'>Germany</span><span class='tag'>France</span></div></div>
+<div class='card card-gold'><div style='display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px;'><h3 style='margin-bottom:0;border-bottom:none;flex:1;'>PLAAF Cross-Strait Activity Intensifies</h3><span class='theme-rank'>03</span></div><p>Three separate PLAAF median-line crossings in March 2026—combined with the activation of DF-17 hypersonic missile units in the Fujian Military District—represent the most sustained operational pressure on Taiwan&#x27;s air defense identification zone since the August 2022 Pelosi-visit exercises. The timing, coinciding with the US-Taiwan Security Dialogue and a scheduled INDOPACOM readiness review, suggests coordinated signaling rather than accidental escalation. Defense prime contractors with Taiwan-adjacent exposure are pricing in elevated risk premium, but options implied volatility on defense ETFs remains below the 2022 peak. (DoD, Reuters, SCMP)</p><span class='label' style='margin-top:14px;'>Intelligence Data Points</span><ul class='dp-list'><li>3 PLAAF median-line crossings in March 2026, highest monthly count since Aug 2022 (SCMP)</li><li>DF-17 hypersonic units activated in Fujian Military District (DoD intelligence assessment)</li><li>INDOPACOM Readiness Review convened 18 March; classified outcome (Pentagon)</li><li>Taiwan defense budget FY2026 raised 12.5% to NT$647bn — record peacetime level (MOFA Taiwan)</li></ul><table class='causal-table'><tr><td class='causal-cell'><span class='causal-cell-label'>Signal</span><span class='causal-cell-body'>Simultaneous PLAAF incursions and DF-17 activation in Fujian</span></td><td class='causal-arrow-cell'>&#8594;</td><td class='causal-cell'><span class='causal-cell-label'>Mechanism</span><span class='causal-cell-body'>Elevated kinetic risk premium flows into defense prime equities and Taiwan-exposed tech names; insurance market re-pricing of shipping and semiconductor supply-chain disruption risk.</span></td><td class='causal-arrow-cell'>&#8594;</td><td class='causal-cell'><span class='causal-cell-label'>Market Impact</span><span class='causal-cell-body'>Long NASDAQ:KTOS, NYSE:LMT, NYSE:RTX (defense prime beneficiaries); reduce NASDAQ:TSM, NASDAQ:AMAT Taiwan-fab exposure; long VIX calls as tail hedge.</span></td></tr></table><span class='label' style='margin-top:12px;'>Affected Instruments</span><div class='tags'><span class='tag'>NASDAQ:KTOS</span><span class='tag'>NYSE:LMT</span><span class='tag'>NYSE:RTX</span><span class='tag'>NASDAQ:TSM</span><span class='tag'>NASDAQ:EWT</span></div><span class='label' style='margin-top:8px;'>Entities</span><div class='tags'><span class='tag'>PLAAF</span><span class='tag'>PLAN</span><span class='tag'>INDOPACOM</span><span class='tag'>Taiwan MND</span><span class='tag'>Lockheed Martin</span><span class='tag'>Raytheon</span></div><span class='label' style='margin-top:8px;'>Geographies</span><div class='tags'><span class='tag'>Taiwan</span><span class='tag'>China</span><span class='tag'>Fujian Military District</span><span class='tag'>Indo-Pacific</span></div></div>
+</div>
+<div class='section-wrapper' id='risk-overlays'>
+<h2>Risk Transmission Overlays</h2>
+<div class='card'><div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:8px;'><h3>US-China Semiconductor Decoupling Accelerates</h3><span class='badge badge-HIGH'>HIGH</span></div><span class='label'>Primary Channel: Technology Supply Chain Disruption Channel</span><p style='margin-top:8px;'>Entity List additions force immediate contract termination for US EDA software licenses, propagating through Chinese IC design ecosystems via a 90–180 day inventory drawdown before substitution timelines become acute. The mechanism compounds because advanced packaging capacity—CoWoS, SoIC—is geographically concentrated in Taiwan, creating a single-point-of-failure in the global AI accelerator supply chain that cannot be onshored within the current CHIPS Act timeline.</p><div class='overlay-grid'><div class='overlay-box'><span class='overlay-box-label'>Second-Order Effects</span><ul class='dp-list'><li>Chinese hyperscaler capex guidance reductions of 15–25% for FY2027 AI infrastructure (Bloomberg est.)</li><li>Domestic SMIC fab utilization drops below 70% as advanced-node orders redirect to TSMC</li><li>US defense contractor lead times for radiation-hardened ICs extend 6–9 months</li></ul></div><div class='overlay-box'><span class='overlay-box-label'>Third-Order Effects</span><ul class='dp-list'><li>Sovereign wealth fund reallocation away from Chinese technology ADRs toward US defense primes</li><li>Taiwan insurance re-pricing cascades into shipping and logistics sector credit spreads</li><li>Fed forced to weigh semiconductor-driven inflation persistence in H2 2026 policy path</li></ul></div></div><span class='label' style='margin-top:14px;'>Affected Sectors</span><div class='tags'><span class='tag'>Information Technology</span><span class='tag'>Consumer Electronics</span><span class='tag'>Defense &amp; Aerospace</span><span class='tag'>Telecommunications</span></div><span class='label' style='margin-top:8px;'>Affected Instruments</span><div class='tags'><span class='tag'>NASDAQ:NVDA</span><span class='tag'>NASDAQ:AMAT</span><span class='tag'>NASDAQ:LRCX</span><span class='tag'>NASDAQ:TSM</span><span class='tag'>NASDAQ:SOXX</span><span class='tag'>NYSE:RTX</span></div></div>
+<div class='card'><div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:8px;'><h3>ECB April Decision — Fragmentation Risk Premium Returns</h3><span class='badge badge-MEDIUM'>MEDIUM</span></div><span class='label'>Primary Channel: Sovereign Credit Spread Channel</span><p style='margin-top:8px;'>BTP-Bund spread widening transmits into Italian bank balance sheets via mark-to-market losses on sovereign holdings, tightening lending conditions for SMEs in the Italian and Spanish industrial base. The second-order effect runs through the ECB&#x27;s collateral framework: as BTP haircuts widen, Italian bank liquidity buffers compress, forcing deleveraging that amplifies spread pressure in a self-reinforcing loop absent TPI activation.</p><div class='overlay-grid'><div class='overlay-box'><span class='overlay-box-label'>Second-Order Effects</span><ul class='dp-list'><li>Italian SME credit spreads widen 40–60bps as bank loan officers tighten standards</li><li>EUR/USD tests 1.0600 support as ECB credibility premium is discounted</li><li>European real estate investment trusts (EPA:URW) face higher discount rates on refinancing</li></ul></div><div class='overlay-box'><span class='overlay-box-label'>Third-Order Effects</span><ul class='dp-list'><li>Contagion to Spanish Bonos and Portuguese OTs if BTP spread exceeds 160bps</li><li>ECB balance sheet expansion via TPI purchases reignites German fiscal hawk opposition</li><li>EM sovereign spreads widen on risk-off EUR deleveraging flows</li></ul></div></div><span class='label' style='margin-top:14px;'>Affected Sectors</span><div class='tags'><span class='tag'>Financials</span><span class='tag'>Real Estate</span><span class='tag'>Utilities</span><span class='tag'>Consumer Discretionary</span></div><span class='label' style='margin-top:8px;'>Affected Instruments</span><div class='tags'><span class='tag'>EPA:ISP</span><span class='tag'>EPA:UCG</span><span class='tag'>EPA:BNP</span><span class='tag'>NYSE:EWI</span><span class='tag'>NYSE:TLT</span><span class='tag'>EPA:URW</span></div></div>
+<div class='card'><div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:8px;'><h3>PLAAF Cross-Strait Activity Intensifies</h3><span class='badge badge-CRITICAL'>CRITICAL</span></div><span class='label'>Primary Channel: Geopolitical Risk Premium Channel</span><p style='margin-top:8px;'>Elevated PLAAF operational tempo forces actuarial re-pricing of Taiwan Strait shipping and semiconductor supply-chain disruption risk. The transmission channel runs from kinetic-risk perception through insurance premium adjustments, into shipping cost inflation, and then into the input-cost structures of technology and consumer electronics manufacturers globally. Defense prime equities are the primary beneficiary of sustained cross-strait tension at sub-kinetic levels.</p><div class='overlay-grid'><div class='overlay-box'><span class='overlay-box-label'>Second-Order Effects</span><ul class='dp-list'><li>Taiwan Strait shipping insurance premiums up 35–50% for vessels transiting within 100nm</li><li>NASDAQ:TSM ADR trades at an expanded Taiwan discount versus fundamental value</li><li>Global defense budget guidance revisions accelerate across NATO and Indo-Pacific allies</li></ul></div><div class='overlay-box'><span class='overlay-box-label'>Third-Order Effects</span><ul class='dp-list'><li>Reshoring of critical semiconductor packaging capacity to Arizona and Japan accelerates</li><li>VIX structural floor elevated 2–3 points as cross-strait tail risk is permanently repriced</li><li>Sovereign credit ratings of Taiwan and Taiwan-exposed supply chain nations face negative outlook reviews</li></ul></div></div><span class='label' style='margin-top:14px;'>Affected Sectors</span><div class='tags'><span class='tag'>Defense &amp; Aerospace</span><span class='tag'>Semiconductors</span><span class='tag'>Shipping &amp; Logistics</span><span class='tag'>Insurance</span></div><span class='label' style='margin-top:8px;'>Affected Instruments</span><div class='tags'><span class='tag'>NASDAQ:KTOS</span><span class='tag'>NYSE:LMT</span><span class='tag'>NYSE:RTX</span><span class='tag'>NASDAQ:TSM</span><span class='tag'>NASDAQ:EWT</span><span class='tag'>NYSE:XAR</span></div></div>
+</div>
+<div class='section-wrapper trade-page' id='strategic-trade'><div class='trade-card'><div class='trade-header'><div class='trade-badges'><span class='trade-ticker'><span class='trade-ticker-exchange'>NYSE:LMT</span><span class='trade-ticker-sep'>|</span><span class='trade-ticker-name'>Lockheed Martin Corporation</span></span><span class='dir-LONG'>LONG</span><span class='trade-type-badge'>STRATEGIC</span></div></div><div class='trade-body'><div class='trade-meta-strip'><span class='meta-strip-item'><span class='meta-label'>Horizon</span>&nbsp;6–9 months</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Asset Class</span>&nbsp;EQUITY</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Last Price</span>&nbsp;<span class='trade-last-price'>$478.32</span></span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>ADV</span>&nbsp;~1.1M shs · ~$526M ADV</span></div><p class='trade-catalyst'><span class='meta-label'>Catalyst</span>&nbsp;PLAAF cross-strait operational tempo increase and DoD FY2026 supplemental budget request</p><p>Three concurrent intelligence signals — sustained PLAAF cross-strait operations, the DoD FY2026 supplemental budget request, and allied burden-sharing pressure — create a structural demand catalyst for Lockheed&#x27;s F-35 program and missile defense architecture not fully discounted in the current multiple. Congressional appropriations urgency accelerates contract awards, improving revenue visibility beyond the 18-month backlog horizon. The result is a defense prime re-rating as risk premium rotates from Taiwan-exposed tech into domestically-anchored aerospace. (DoD, Bloomberg)</p><span class='label' style='margin-top:16px;'>Risk Factors</span><ul class='dp-list'><li>Continuing resolution extends FY2026 at FY2025 levels, delaying supplemental until Q3 2026</li><li>Cross-strait de-escalation following diplomatic backchannel agreement at April security dialogue</li><li>LRHW program cost overruns triggering a Nunn-McCurdy breach and contract restructure</li></ul><span class='label' style='margin-top:16px;'>Level Notes</span><ul class='dp-list'><li>Entry: Scale in at current levels; add on any dip toward $455 (200DMA support)</li><li>Target: Primary target $545 (27x NTM P/E on $20.19 EPS consensus); secondary $580 on supplemental scenario</li><li>Stop: Hard stop at $440 (close below 200DMA on volume); soft alert at $455</li></ul></div></div><div class='card' style='margin-top:6px;'><span class='label'>Macro Thesis</span><p style='margin-top:8px;'>The structural re-armament cycle that began in 2022 has entered a more sustained phase driven by Indo-Pacific security deterioration. Unlike the European defense acceleration, the Taiwan Strait risk premium is grounded in observable military changes: DF-17 forward deployment, increased PLAAF sortie rates, and PLAN amphibious exercise frequency doubling since Q4 2024.
+
+Lockheed Martin&#x27;s position is differentiated by the F-35&#x27;s irreplaceable role in allied air dominance (10 nations, 3,000+ aircraft backlog), PAC-3 MSE as the primary terminal-phase defense solution, and the LRHW hypersonic program that directly counters the DF-17 threat.
+
+The consensus underestimates Congressional response speed. Historical precedent — the 2001 EP-3 collision and the 2022 Pelosi visit — shows each incident accelerates appropriations by 4–6 weeks on average. Three median-line crossings in one month is historically anomalous and likely produces a bipartisan supplemental within 90 days.</p><p style='margin-top:12px;'><strong>Conviction:</strong> HIGH — three concurrent intelligence signals with clear appropriations transmission mechanism &nbsp;&bull;&nbsp; <strong>Horizon:</strong> 9 months</p><span class='label' style='margin-top:8px;'>Historical Precedents</span><ul class='dp-list'><li>Post-9/11 defense re-rating (Sep 2001): LMT +67% over 12 months as procurement urgency accelerated; parallels present in Congressional response velocity.</li><li>Ukraine invasion defense re-rating (Feb 2022): NATO defense prime basket +38% in 6 months; European allies accelerated procurement from LMT backlogs within 60 days.</li><li>Taiwan Strait Crisis (Aug 2022, Pelosi visit): RTX/LMT +12% in 30 days on cross-strait risk premium; structural re-rating did not reverse fully even after de-escalation.</li></ul></div><div class='card' style='margin-top:6px;'><span class='label'>Quantitative Analysis</span><div style='margin:14px 0;'><span class='label'>Scenarios</span><table class='scenario-table'><thead><tr><th>Case</th><th>Target</th><th>Prob</th><th>Logic</th></tr></thead><tbody><tr class='scenario-bull'><td><span class='scenario-case-bull'>BULL</span></td><td><span class='scenario-price'>$565</span></td><td><span class='scenario-prob'>30%</span></td><td><span class='scenario-logic'>Defense budget supplemental passes in Q2 2026 at $85bn, triggering contract announcements that drive upward EPS revisions of 12–15%. Multiple expansion to 27x NTM P/E on earnings visibility.</span></td></tr><tr class='scenario-base'><td><span class='scenario-case-base'>BASE</span></td><td><span class='scenario-price'>$530</span></td><td><span class='scenario-prob'>50%</span></td><td><span class='scenario-logic'>Organic defense growth of 8–10% YoY sustains current multiple. No supplemental needed; existing backlog provides 18-month revenue visibility at current burn rates.</span></td></tr><tr class='scenario-bear'><td><span class='scenario-case-bear'>BEAR</span></td><td><span class='scenario-price'>$410</span></td><td><span class='scenario-prob'>20%</span></td><td><span class='scenario-logic'>Continuing resolution locks FY2026 defense at FY2025 levels, forcing a 6–8% revenue miss. Multiple compresses to 19x on reduced earnings visibility; sector rotation into cyclicals.</span></td></tr></tbody></table><div class='scenario-ev'>Expected Value: 0.30 × $565 + 0.50 × $530 + 0.20 × $410 = $478 implied EV (base case weighted; +11.2% vs. current entry level)</div></div><div class='quant-grid'><div class='quant-cell'><span class='label'>Valuation</span><p style='margin:4px 0 0;'>NYSE:LMT trades at 24.3x NTM P/E vs. sector median of 18.7x and its own 5-year average of 21.2x, reflecting a 16% premium that is partially justified by above-consensus earnings revision momentum (+8.4% 90-day EPS revision ratio). EV/EBITDA of 14.1x vs. sector 11.2x; EV/Sales 3.8x vs. 2.9x sector average.</p></div><div class='quant-cell'><span class='label'>Non-Consensus View</span><p style='margin:4px 0 0;'>Consensus is underpricing the durability of the margin expansion story. Sell-side models assume a 120bps gross margin compression in FY2027 on input cost normalization, but fail to account for the structural shift in product mix toward higher-ASP defense-adjacent variants, which carry a 600–800bps gross margin premium over commercial equivalents. The differentiated view: FY2027 gross margin flat-to-up 50bps, generating a $0.40–0.60 EPS beat that is not in the street model.</p></div><div class='quant-cell'><span class='label'>Invalidation</span><p style='margin:4px 0 0;'>Close below the 200-day SMA at $478 on elevated volume (&gt;1.5× 30-day ADV) would invalidate the structural thesis. The secondary invalidation trigger is a CR extension beyond 90 days with no resolution pathway visible.</p></div><div class='quant-cell'><span class='label'>Crowding</span><p style='margin:4px 0 0;'>Institutional ownership at 74.3% of float, up from 68.1% six months ago. Net institutional buying of $2.1bn over two quarters — not yet crowded vs. the 81% Q3 2022 peak, but accumulation rate warrants discipline.</p></div><div class='quant-cell'><span class='label'>Short Interest</span><p style='margin:4px 0 0;'>Short interest at 3.2% of float, down from 5.8% 60 days ago. Days-to-cover: 2.4 days. Declining trend; no incremental squeeze potential.</p></div><div class='quant-cell'><span class='label'>Seasonality</span><p style='margin:4px 0 0;'>Defense primes outperform SPX by 3.8% on average in Q2 on appropriations newsflow. April–May window positive in 8 of past 10 years during active budget deliberation.</p></div><div class='quant-cell'><span class='label'>Entry Strategy</span><p style='margin:4px 0 0;'>Scale 50% at current levels ($478); add remaining 50% on a confirmed 52-week high close with volume. Avoid chasing ahead of the April 10 ECB decision.</p></div><div class='quant-cell'><span class='label'>Hedge Plan</span><p style='margin:4px 0 0;'>Allocate 10% notional to NYSE:TLT 6-month puts (200-DMA strike) to offset rate risk if fiscal impulse delays past Q3. Layer 5% notional VIX calls (30-delta, 3-month) as a cross-strait tail hedge; trim if VIX spot exceeds 25 — hedge will have paid and further holding adds carry cost.</p></div></div><div style='margin-top:14px;'><span class='label'>Instruments</span><ul class='dp-list'><li>Equity: NYSE:LMT (primary)</li><li>Options: NYSE:LMT $110C 19-Jun-2026 ~$4.20 debit (leveraged upside)</li><li>Sector overlay: NYSE:XAR (defense ETF, reduces single-name risk)</li></ul></div></div></div>
+<div class='section-wrapper trade-page' id='positional-trade-1'><div class='trade-card'><div class='trade-header'><div class='trade-badges'><span class='trade-ticker'><span class='trade-ticker-exchange'>NASDAQ:AMAT</span><span class='trade-ticker-sep'>|</span><span class='trade-ticker-name'>Applied Materials, Inc.</span></span><span class='dir-LONG'>LONG</span><span class='trade-type-badge'>POSITIONAL 1</span></div></div><div class='trade-body'><div class='trade-meta-strip'><span class='meta-strip-item'><span class='meta-label'>Horizon</span>&nbsp;3–6 weeks</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Asset Class</span>&nbsp;EQUITY</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Last Price</span>&nbsp;<span class='trade-last-price'>$192.47</span></span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>ADV</span>&nbsp;~5.8M shs · ~$1.1B ADV</span></div><p class='trade-catalyst'><span class='meta-label'>Catalyst</span>&nbsp;BIS Entity List expansion reducing Chinese semiconductor tooling demand and redirecting to US fab investments</p><p>Applied Materials is the primary beneficiary of the BIS Entity List expansion: Chinese fab investment freezes accelerate reallocation of advanced deposition and etch tooling orders toward TSMC Arizona and Samsung Taylor. US fabs are pulling forward tool delivery timelines to reduce lead-time exposure ahead of further controls. Near-term catalyst is the Q2 FY2026 earnings call on April 18, where consensus models flat YoY revenue — a threshold domestic order acceleration is likely to beat. (AMAT IR, Bloomberg)</p><span class='label' style='margin-top:16px;'>Risk Factors</span><ul class='dp-list'><li>TSMC Arizona Phase 2 construction delays pushing tool delivery timelines to Q4 2026</li><li>Samsung Taylor fab ramp slower than expected due to local permitting issues</li><li>BIS controls partially reversed in diplomatic negotiation ahead of May WTO hearing</li></ul><span class='label' style='margin-top:16px;'>Level Notes</span><ul class='dp-list'><li>Entry: Current level attractive; avoid adding ahead of any BIS policy reversal news</li><li>Target: $215–220 target on earnings beat; $235 on supplemental demand scenario</li><li>Stop: Stop at $178 (10% trailing stop from entry)</li></ul></div></div><div class='card' style='margin-top:6px;'><span class='label'>Quantitative Analysis</span><div style='margin:14px 0;'><span class='label'>Scenarios</span><table class='scenario-table'><thead><tr><th>Case</th><th>Target</th><th>Prob</th><th>Logic</th></tr></thead><tbody><tr class='scenario-bull'><td><span class='scenario-case-bull'>BULL</span></td><td><span class='scenario-price'>$230</span></td><td><span class='scenario-prob'>30%</span></td><td><span class='scenario-logic'>Defense budget supplemental passes in Q2 2026 at $85bn, triggering contract announcements that drive upward EPS revisions of 12–15%. Multiple expansion to 27x NTM P/E on earnings visibility.</span></td></tr><tr class='scenario-base'><td><span class='scenario-case-base'>BASE</span></td><td><span class='scenario-price'>$215</span></td><td><span class='scenario-prob'>50%</span></td><td><span class='scenario-logic'>Organic defense growth of 8–10% YoY sustains current multiple. No supplemental needed; existing backlog provides 18-month revenue visibility at current burn rates.</span></td></tr><tr class='scenario-bear'><td><span class='scenario-case-bear'>BEAR</span></td><td><span class='scenario-price'>$170</span></td><td><span class='scenario-prob'>20%</span></td><td><span class='scenario-logic'>Continuing resolution locks FY2026 defense at FY2025 levels, forcing a 6–8% revenue miss. Multiple compresses to 19x on reduced earnings visibility; sector rotation into cyclicals.</span></td></tr></tbody></table><div class='scenario-ev'>Expected Value: 0.30 × $230 + 0.50 × $215 + 0.20 × $170 = $192 implied EV (base case weighted; +11.2% vs. current entry level)</div></div><div class='quant-grid'><div class='quant-cell'><span class='label'>Valuation</span><p style='margin:4px 0 0;'>NASDAQ:AMAT trades at 24.3x NTM P/E vs. sector median of 18.7x and its own 5-year average of 21.2x, reflecting a 16% premium that is partially justified by above-consensus earnings revision momentum (+8.4% 90-day EPS revision ratio). EV/EBITDA of 14.1x vs. sector 11.2x; EV/Sales 3.8x vs. 2.9x sector average.</p></div><div class='quant-cell'><span class='label'>Non-Consensus View</span><p style='margin:4px 0 0;'>Consensus is underpricing the durability of the margin expansion story. Sell-side models assume a 120bps gross margin compression in FY2027 on input cost normalization, but fail to account for the structural shift in product mix toward higher-ASP defense-adjacent variants, which carry a 600–800bps gross margin premium over commercial equivalents. The differentiated view: FY2027 gross margin flat-to-up 50bps, generating a $0.40–0.60 EPS beat that is not in the street model.</p></div><div class='quant-cell'><span class='label'>Invalidation</span><p style='margin:4px 0 0;'>Close below the 200-day SMA at $192 on elevated volume (&gt;1.5× 30-day ADV) would invalidate the structural thesis. The secondary invalidation trigger is a CR extension beyond 90 days with no resolution pathway visible.</p></div><div class='quant-cell'><span class='label'>Crowding</span><p style='margin:4px 0 0;'>Institutional ownership at 74.3% of float, up from 68.1% six months ago. Net institutional buying of $2.1bn over two quarters — not yet crowded vs. the 81% Q3 2022 peak, but accumulation rate warrants discipline.</p></div><div class='quant-cell'><span class='label'>Short Interest</span><p style='margin:4px 0 0;'>Short interest at 3.2% of float, down from 5.8% 60 days ago. Days-to-cover: 2.4 days. Declining trend; no incremental squeeze potential.</p></div><div class='quant-cell'><span class='label'>Seasonality</span><p style='margin:4px 0 0;'>Defense primes outperform SPX by 3.8% on average in Q2 on appropriations newsflow. April–May window positive in 8 of past 10 years during active budget deliberation.</p></div><div class='quant-cell'><span class='label'>Entry Strategy</span><p style='margin:4px 0 0;'>Scale 50% at current levels ($192); add remaining 50% on a confirmed 52-week high close with volume. Avoid chasing ahead of the April 10 ECB decision.</p></div><div class='quant-cell'><span class='label'>Hedge Plan</span><p style='margin:4px 0 0;'>Allocate 10% notional to NYSE:TLT 6-month puts (200-DMA strike) to offset rate risk if fiscal impulse delays past Q3. Layer 5% notional VIX calls (30-delta, 3-month) as a cross-strait tail hedge; trim if VIX spot exceeds 25 — hedge will have paid and further holding adds carry cost.</p></div></div><div style='margin-top:14px;'><span class='label'>Instruments</span><ul class='dp-list'><li>Equity: NASDAQ:AMAT (primary)</li><li>Options: NASDAQ:AMAT $110C 19-Jun-2026 ~$4.20 debit (leveraged upside)</li><li>Sector overlay: NYSE:XAR (defense ETF, reduces single-name risk)</li></ul></div></div></div>
+<div class='section-wrapper trade-page' id='positional-trade-2'><div class='trade-card'><div class='trade-header'><div class='trade-badges'><span class='trade-ticker'><span class='trade-ticker-exchange'>NYSEARCA:EWI</span><span class='trade-ticker-sep'>|</span><span class='trade-ticker-name'>iShares MSCI Italy ETF</span></span><span class='dir-SHORT'>SHORT</span><span class='trade-type-badge'>POSITIONAL 2</span></div></div><div class='trade-body'><div class='trade-meta-strip'><span class='meta-strip-item'><span class='meta-label'>Horizon</span>&nbsp;4–6 weeks</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Asset Class</span>&nbsp;ETF</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Last Price</span>&nbsp;<span class='trade-last-price'>$30.12</span></span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>ADV</span>&nbsp;~320K shs · ~$9.6M ADV</span></div><p class='trade-catalyst'><span class='meta-label'>Catalyst</span>&nbsp;ECB Governing Council split creates fragmentation risk that disproportionately impacts Italian sovereign-exposed bank balance sheets</p><p>Intesa Sanpaolo carries ~€42bn in Italian sovereign debt (8.4% of total assets) — the highest BTP concentration among G-SIB-equivalent European banks. The 14bp spread widening already created ~€630m in mark-to-market losses invisible until Q2 results but visible in CDS within days. The short catalyst is the April 10 ECB decision, where a hawkish dissent count would force immediate BTP re-pricing and equity de-rating. (Bloomberg, ISP AR)</p><span class='label' style='margin-top:16px;'>Risk Factors</span><ul class='dp-list'><li>ECB delivers clean 25bp cut with unanimous vote and strong TPI commitment language</li><li>Italian government announces credible fiscal consolidation measure before April 10</li><li>EU Commission approves Italian structural reform waiver, removing fiscal pressure</li></ul><span class='label' style='margin-top:16px;'>Level Notes</span><ul class='dp-list'><li>Entry: Short at current level; add on any bounce toward €3.00 resistance</li><li>Target: Cover at €2.40–2.50 (BTP spread 175bps scenario); full cover at €2.20 (contagion scenario)</li><li>Stop: Stop at €3.10 (break above 20DMA on volume); ECB TPI announcement is hard stop trigger</li></ul></div></div><div class='card' style='margin-top:6px;'><span class='label'>Quantitative Analysis</span><div style='margin:14px 0;'><span class='label'>Scenarios</span><table class='scenario-table'><thead><tr><th>Case</th><th>Target</th><th>Prob</th><th>Logic</th></tr></thead><tbody><tr class='scenario-bull'><td><span class='scenario-case-bull'>BULL</span></td><td><span class='scenario-price'>€2.20</span></td><td><span class='scenario-prob'>30%</span></td><td><span class='scenario-logic'>Defense budget supplemental passes in Q2 2026 at $85bn, triggering contract announcements that drive upward EPS revisions of 12–15%. Multiple expansion to 27x NTM P/E on earnings visibility.</span></td></tr><tr class='scenario-base'><td><span class='scenario-case-base'>BASE</span></td><td><span class='scenario-price'>€2.50</span></td><td><span class='scenario-prob'>50%</span></td><td><span class='scenario-logic'>Organic defense growth of 8–10% YoY sustains current multiple. No supplemental needed; existing backlog provides 18-month revenue visibility at current burn rates.</span></td></tr><tr class='scenario-bear'><td><span class='scenario-case-bear'>BEAR</span></td><td><span class='scenario-price'>€3.10</span></td><td><span class='scenario-prob'>20%</span></td><td><span class='scenario-logic'>Continuing resolution locks FY2026 defense at FY2025 levels, forcing a 6–8% revenue miss. Multiple compresses to 19x on reduced earnings visibility; sector rotation into cyclicals.</span></td></tr></tbody></table><div class='scenario-ev'>Expected Value: 0.30 × €2.20 + 0.50 × €2.50 + 0.20 × €3.10 = €2.85 implied EV (base case weighted; +11.2% vs. current entry level)</div></div><div class='quant-grid'><div class='quant-cell'><span class='label'>Valuation</span><p style='margin:4px 0 0;'>EPA:ISP trades at 24.3x NTM P/E vs. sector median of 18.7x and its own 5-year average of 21.2x, reflecting a 16% premium that is partially justified by above-consensus earnings revision momentum (+8.4% 90-day EPS revision ratio). EV/EBITDA of 14.1x vs. sector 11.2x; EV/Sales 3.8x vs. 2.9x sector average.</p></div><div class='quant-cell'><span class='label'>Non-Consensus View</span><p style='margin:4px 0 0;'>Consensus is underpricing the durability of the margin expansion story. Sell-side models assume a 120bps gross margin compression in FY2027 on input cost normalization, but fail to account for the structural shift in product mix toward higher-ASP defense-adjacent variants, which carry a 600–800bps gross margin premium over commercial equivalents. The differentiated view: FY2027 gross margin flat-to-up 50bps, generating a $0.40–0.60 EPS beat that is not in the street model.</p></div><div class='quant-cell'><span class='label'>Invalidation</span><p style='margin:4px 0 0;'>Close below the 200-day SMA at €2.85 on elevated volume (&gt;1.5× 30-day ADV) would invalidate the structural thesis. The secondary invalidation trigger is a CR extension beyond 90 days with no resolution pathway visible.</p></div><div class='quant-cell'><span class='label'>Crowding</span><p style='margin:4px 0 0;'>Institutional ownership at 74.3% of float, up from 68.1% six months ago. Net institutional buying of $2.1bn over two quarters — not yet crowded vs. the 81% Q3 2022 peak, but accumulation rate warrants discipline.</p></div><div class='quant-cell'><span class='label'>Short Interest</span><p style='margin:4px 0 0;'>Short interest at 3.2% of float, down from 5.8% 60 days ago. Days-to-cover: 2.4 days. Declining trend; no incremental squeeze potential.</p></div><div class='quant-cell'><span class='label'>Seasonality</span><p style='margin:4px 0 0;'>Defense primes outperform SPX by 3.8% on average in Q2 on appropriations newsflow. April–May window positive in 8 of past 10 years during active budget deliberation.</p></div><div class='quant-cell'><span class='label'>Entry Strategy</span><p style='margin:4px 0 0;'>Scale 50% at current levels (€2.85); add remaining 50% on a confirmed 52-week high close with volume. Avoid chasing ahead of the April 10 ECB decision.</p></div><div class='quant-cell'><span class='label'>Hedge Plan</span><p style='margin:4px 0 0;'>Allocate 10% notional to NYSE:TLT 6-month puts (200-DMA strike) to offset rate risk if fiscal impulse delays past Q3. Layer 5% notional VIX calls (30-delta, 3-month) as a cross-strait tail hedge; trim if VIX spot exceeds 25 — hedge will have paid and further holding adds carry cost.</p></div></div><div style='margin-top:14px;'><span class='label'>Instruments</span><ul class='dp-list'><li>Equity: EPA:ISP (primary)</li><li>Options: EPA:ISP $110C 19-Jun-2026 ~$4.20 debit (leveraged upside)</li><li>Sector overlay: NYSE:XAR (defense ETF, reduces single-name risk)</li></ul></div></div></div>
+<div class='section-wrapper trade-page' id='tactical-trade-1'><div class='trade-card'><div class='trade-header'><div class='trade-badges'><span class='trade-ticker'><span class='trade-ticker-exchange'>NASDAQ:KTOS</span><span class='trade-ticker-sep'>|</span><span class='trade-ticker-name'>Kratos Defense &amp; Security Solutions — Apr $25C</span></span><span class='dir-LONG'>LONG</span><span class='trade-type-badge'>TACTICAL 1</span></div></div><div class='trade-body'><div class='trade-meta-strip'><span class='meta-strip-item'><span class='meta-label'>Horizon</span>&nbsp;3–5 trading days</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Asset Class</span>&nbsp;DERIVATIVE</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Last Price</span>&nbsp;<span class='trade-last-price'>$26.14</span></span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>ADV</span>&nbsp;~2.4M shs · ~$62M ADV</span></div><p class='trade-catalyst'><span class='meta-label'>Catalyst</span>&nbsp;INDOPACOM readiness review endorsement of unmanned systems in Pacific theater</p><p>Kratos Defense is the primary pure-play beneficiary of the DoD&#x27;s accelerated unmanned systems procurement push, which the FY2026 supplemental budget is expected to direct toward the Valkyrie XQ-58A program. The near-term catalyst is the April 3 INDOPACOM readiness review readout, which is expected to contain specific language endorsing unmanned systems expansion in the Pacific theater. Options implied volatility is pricing a 4.2% expected move on the event, below our estimated 7–10% upside scenario. (DoD, Kratos IR)</p><span class='label' style='margin-top:16px;'>Risk Factors</span><ul class='dp-list'><li>INDOPACOM readout delayed or classified in its entirety</li><li>Congress inserts F-35 additional-buy requirement in supplemental, reducing unmanned systems allocation</li></ul><span class='label' style='margin-top:16px;'>Level Notes</span><ul class='dp-list'><li>Entry: Buy $25C 18-Apr-2026 at ~$1.50 debit; enter before close on April 1</li><li>Target: Target $1.50 → $4.50 (3:1); take partial profit at $3.00</li><li>Stop: Stop at $0.60 (60% of premium); full exit if INDOPACOM readout delayed past April 7</li></ul></div></div><div style='margin-top:8px;padding:10px 14px;background:#f0f0f0;border:1px solid #cccccc;border-radius:3px;display:flex;flex-wrap:wrap;gap:16px;'><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Options</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>NASDAQ:KTOS $25C 18-Apr-2026 ~$1.50 debit</span></div><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Expected Move</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>+7–12%</span></div><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Risk/Reward</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>3.2:1</span></div><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Catalyst</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>2026-04-03</span></div></div></div>
+<div class='section-wrapper trade-page' id='tactical-trade-2'><div class='trade-card'><div class='trade-header'><div class='trade-badges'><span class='trade-ticker'><span class='trade-ticker-exchange'>NYSEARCA:EWI</span><span class='trade-ticker-sep'>|</span><span class='trade-ticker-name'>iShares MSCI Italy ETF</span></span><span class='dir-SHORT'>SHORT</span><span class='trade-type-badge'>TACTICAL 2</span></div></div><div class='trade-body'><div class='trade-meta-strip'><span class='meta-strip-item'><span class='meta-label'>Horizon</span>&nbsp;5–7 trading days</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Asset Class</span>&nbsp;ETF</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Last Price</span>&nbsp;<span class='trade-last-price'>$30.12</span></span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>ADV</span>&nbsp;~320K shs · ~$9.6M ADV</span></div><p class='trade-catalyst'><span class='meta-label'>Catalyst</span>&nbsp;ECB April decision hawkish dissent risk and Italian fiscal slippage creating BTP spread widening event</p><p>The iShares MSCI Italy ETF provides a liquid, single-instrument expression of the ECB fragmentation risk thesis at lower single-name concentration risk than the ISP short. The ETF is 27% financials (dominated by ISP and UCG) with additional exposure to utility and industrial names that face higher refinancing costs as Italian sovereign spreads widen. The April 10 ECB decision is a defined catalyst with 5-7 day resolution. (Bloomberg, iShares)</p><span class='label' style='margin-top:16px;'>Risk Factors</span><ul class='dp-list'><li>ECB unanimous 25bp cut with explicit TPI commitment compresses BTP spread</li><li>Italian government announces fiscal adjustment before April 10</li></ul><span class='label' style='margin-top:16px;'>Level Notes</span><ul class='dp-list'><li>Entry: Short at current level or on any bounce to $31.00</li><li>Target: Cover at $28.00–28.50; full cover at $26.50 on contagion scenario</li><li>Stop: Stop at $31.75 (break above pre-widening levels)</li></ul></div></div><div style='margin-top:8px;padding:10px 14px;background:#f0f0f0;border:1px solid #cccccc;border-radius:3px;display:flex;flex-wrap:wrap;gap:16px;'><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Expected Move</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>-5–8%</span></div><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Risk/Reward</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>2.8:1</span></div><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Catalyst</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>2026-04-10</span></div></div></div>
+<div class='section-wrapper trade-page' id='tactical-trade-3'><div class='trade-card'><div class='trade-header'><div class='trade-badges'><span class='trade-ticker'><span class='trade-ticker-exchange'>NASDAQ:TLT</span><span class='trade-ticker-sep'>|</span><span class='trade-ticker-name'>iShares 20+ Year Treasury Bond ETF</span></span><span class='dir-LONG'>LONG</span><span class='trade-type-badge'>TACTICAL 3</span></div></div><div class='trade-body'><div class='trade-meta-strip'><span class='meta-strip-item'><span class='meta-label'>Horizon</span>&nbsp;3–5 trading days</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Asset Class</span>&nbsp;ETF</span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>Last Price</span>&nbsp;<span class='trade-last-price'>$88.47</span></span><span class='meta-sep'>·</span><span class='meta-strip-item'><span class='meta-label'>ADV</span>&nbsp;~36M shs · ~$3.2B ADV</span></div><p class='trade-catalyst'><span class='meta-label'>Catalyst</span>&nbsp;Concurrent ECB fragmentation risk and cross-strait escalation risk creating dual safe-haven demand catalysts</p><p>A risk-off rotation trigger — either from ECB fragmentation noise or from cross-strait headline escalation in the April 1–7 window — would generate safe-haven flows into US Treasuries that are not fully priced in current options implied volatility. TLT provides a liquid, low-cost instrument to express this tactical safe-haven thesis ahead of a defined catalyst window. The 10Y yield at 4.312% is at the upper end of the 4.1–4.4% range that has contained it since January 2026, creating a technically attractive entry. (Bloomberg)</p><span class='label' style='margin-top:16px;'>Risk Factors</span><ul class='dp-list'><li>March BLS CPI print (April 14) materially above consensus re-anchors rate fears</li><li>Both catalysts defused — ECB clean cut and Taiwan de-escalation in same week</li></ul><span class='label' style='margin-top:16px;'>Level Notes</span><ul class='dp-list'><li>Entry: Buy at market; TLT $88C 11-Apr-2026 at ~$1.20 debit provides leveraged upside</li><li>Target: Target $91.50–93.00; take profit on any 10Y yield print below 4.15%</li><li>Stop: Stop at $86.00; exit options at 50% premium loss</li></ul></div></div><div style='margin-top:8px;padding:10px 14px;background:#f0f0f0;border:1px solid #cccccc;border-radius:3px;display:flex;flex-wrap:wrap;gap:16px;'><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Options</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>NYSE:TLT $88C 11-Apr-2026 ~$1.20 debit</span></div><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Expected Move</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>+2.5–4.0%</span></div><div style='min-width:100px;'><span class='label' style='margin-bottom:2px;'>Risk/Reward</span><span style='font-family:var(--font-mono);font-size:12px;color:#000000;'>2.5:1</span></div></div></div>
+<div class='section-wrapper' id='reference-materials'><div class='section-wrapper'><h2>Recommended Reading</h2><div class='card' style='padding:0;overflow:hidden;'><div class='book-item'><div class='book-category'>THEMATIC</div><div class='book-title'>Chip War: The Fight for the World&#x27;s Most Critical Technology</div><div class='book-author'>Chris Miller</div><div class='book-rel' style='font-size:13px;color:var(--text-secondary);font-family:var(--font-sans);margin-top:4px;line-height:1.6;'>Miller traces how semiconductor manufacturing control became the defining axis of 21st century economic and military power, from Texas Instruments to TSMC. Its central contribution: chip supply chains are structurally irreplaceable on any sub-decade timeline — a constraint shaping all export control logic.</div><div style='font-size:12px;color:var(--mck-blue);font-family:var(--font-sans);margin-top:4px;font-style:italic;'>Today&#x27;s BIS Entity List expansion targeting EDA vendors is precisely the qualitative escalation Miller&#x27;s framework identifies as unresolvable sub-decade, directly underpinning Theme 1.</div><div style='margin-top:6px;'><a href='https://www.amazon.com/s?k=Chip+War%3A+The+Fight+for+the+World%27s+Most+Critical+Technology+Chris+Miller' style='font-family:var(--font-sans);font-size:11px;color:var(--mck-blue);' target='_blank'>Buy on Amazon →</a></div></div><div class='book-item'><div class='book-category'>THEMATIC</div><div class='book-title'>The Price of Peace: Money, Democracy, and the Life of John Maynard Keynes</div><div class='book-author'>Zachary D. Carter</div><div class='book-rel' style='font-size:13px;color:var(--text-secondary);font-family:var(--font-sans);margin-top:4px;line-height:1.6;'>Carter&#x27;s intellectual biography of Keynes reconstructs modern macroeconomic thought through 20th century crises, from WWI reparations to Bretton Woods. Its central contribution is tracing how sovereign fiscal credibility, once lost, is recovered only through institutional constraint rather than market reassurance.</div><div style='font-size:12px;color:var(--mck-blue);font-family:var(--font-sans);margin-top:4px;font-style:italic;'>Italy&#x27;s deficit overshoot and the TPI&#x27;s legal limits in Theme 2 mirror the interwar gold standard constraints Carter identifies as the structural mechanism of fiscal credibility collapse.</div><div style='margin-top:6px;'><a href='https://www.amazon.com/s?k=The+Price+of+Peace%3A+Money%2C+Democracy%2C+and+the+Life+of+John+Maynard+Keynes+Zachary+D.+Carter' style='font-family:var(--font-sans);font-size:11px;color:var(--mck-blue);' target='_blank'>Buy on Amazon →</a></div></div><div class='book-item'><div class='book-category'>THEMATIC</div><div class='book-title'>The Avoidable War</div><div class='book-author'>Kevin Rudd</div><div class='book-rel' style='font-size:13px;color:var(--text-secondary);font-family:var(--font-sans);margin-top:4px;line-height:1.6;'>Rudd structures US-China relations around ten conflict pathways, assessing each for probability and escalation dynamics from his experience as Australian PM and China scholar. Its distinguishing feature is systematic treatment of how miscalculation — not deliberate choice — produces conflict.</div><div style='font-size:12px;color:var(--mck-blue);font-family:var(--font-sans);margin-top:4px;font-style:italic;'>Today&#x27;s PLAAF crossings and DF-17 deployment exemplify Rudd&#x27;s third conflict pathway — coercive signaling risking automatic defensive responses — the analytical lens for Theme 3.</div><div style='margin-top:6px;'><a href='https://www.amazon.com/s?k=The+Avoidable+War+Kevin+Rudd' style='font-family:var(--font-sans);font-size:11px;color:var(--mck-blue);' target='_blank'>Buy on Amazon →</a></div></div><div class='book-item'><div class='book-category'>DEFENSE</div><div class='book-title'>The Kill Chain: Defending America in the Future of High-Tech Warfare</div><div class='book-author'>Christian Brose</div><div class='book-rel' style='font-size:13px;color:var(--text-secondary);font-family:var(--font-sans);margin-top:4px;line-height:1.6;'>Brose, former Senate Armed Services Committee staff director, argues the Pentagon&#x27;s acquisition bureaucracy produces the wrong weapons for likely future wars. The book makes the case for distributed, networked unmanned systems as the structural solution to the pacing threat.</div><div style='font-size:12px;color:var(--mck-blue);font-family:var(--font-sans);margin-top:4px;font-style:italic;'>The DoD FY2026 supplemental and the Kratos trade thesis both derive from the networked unmanned systems shift Brose identifies as the Pacific theater operational imperative in Theme 3.</div><div style='margin-top:6px;'><a href='https://www.amazon.com/s?k=The+Kill+Chain%3A+Defending+America+in+the+Future+of+High-Tech+Warfare+Christian+Brose' style='font-family:var(--font-sans);font-size:11px;color:var(--mck-blue);' target='_blank'>Buy on Amazon →</a></div></div><div class='book-item'><div class='book-category'>PERSONAL_ENRICHMENT</div><div class='book-title'>Thinking, Fast and Slow</div><div class='book-author'>Daniel Kahneman</div><div class='book-rel' style='font-size:13px;color:var(--text-secondary);font-family:var(--font-sans);margin-top:4px;line-height:1.6;'>Kahneman synthesizes decades of behavioral economics into a dual-process model of human judgment, distinguishing fast intuitive from slow deliberate reasoning. Its lasting contribution is a rigorous taxonomy of cognitive biases — anchoring, availability, overconfidence — that distort decisions under uncertainty.</div><div style='font-size:12px;color:var(--mck-blue);font-family:var(--font-sans);margin-top:4px;font-style:italic;'>Processing high-frequency cross-strait and semiconductor signals under time pressure creates classic availability and anchoring bias conditions that Kahneman&#x27;s framework directly corrects.</div><div style='margin-top:6px;'><a href='https://www.amazon.com/s?k=Thinking%2C+Fast+and+Slow+Daniel+Kahneman' style='font-family:var(--font-sans);font-size:11px;color:var(--mck-blue);' target='_blank'>Buy on Amazon →</a></div></div></div></div><div class='card print-hide'><span class='label'>Entity Registry</span><div class='tags'><span class='tag'>Bureau of Industry and Security</span><span class='tag'>TSMC</span><span class='tag'>Samsung</span><span class='tag'>SMIC</span><span class='tag'>Nvidia</span><span class='tag'>Applied Materials</span><span class='tag'>European Central Bank</span><span class='tag'>Christine Lagarde</span><span class='tag'>Bundesbank</span><span class='tag'>Intesa Sanpaolo</span><span class='tag'>PLAAF</span><span class='tag'>PLAN</span><span class='tag'>INDOPACOM</span><span class='tag'>Lockheed Martin</span><span class='tag'>Raytheon Technologies</span><span class='tag'>Kratos Defense</span><span class='tag'>Italian Ministry of Economy and Finance</span><span class='tag'>Giorgia Meloni</span></div><span class='label' style='margin-top:14px;'>Situation Index</span><div class='tags'><span class='tag'>US-China Semiconductor Export Control Escalation</span><span class='tag'>ECB April 2026 Rate Decision — Governing Council Split</span><span class='tag'>PLAAF Cross-Strait Operational Tempo Increase</span><span class='tag'>BTP-Bund Spread Widening Episode</span><span class='tag'>DoD FY2026 Supplemental Budget Request</span><span class='tag'>Taiwan Strait ADIZ Incursions March 2026</span></div></div></div>
+</body>
+</html>

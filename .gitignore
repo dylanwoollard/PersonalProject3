@@ -1,0 +1,15 @@
+# Secrets
+.env
+credentials.json
+token.json
+
+# Generated outputs
+briefings/
+intelligence_memory.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
