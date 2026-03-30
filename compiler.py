@@ -18,7 +18,6 @@ from typing import Optional
 from models import (
     AdversarialAssessment,
     AppendixOutput,
-    ExecutiveDashboard,
     OpeningSections,
     PositionalTradeSet,
     PriorityThemes,
@@ -175,6 +174,36 @@ _STYLES = """
   }
   .card-gold { border-top-color: var(--mck-blue); border-left: none; }
   .card-red  { border-top-color: var(--red); break-inside: avoid; page-break-inside: avoid; }
+
+  /* ── Adversarial Assessment & Logic Review blocks ── */
+  .adversarial-card {
+    border-top: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 28px;
+    background: transparent;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .logic-review {
+    border-top: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.5rem 2rem;
+    margin-top: 8px;
+    background: transparent;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .adversarial-card ul,
+  .adversarial-card ol,
+  .logic-review ul,
+  .logic-review ol {
+    margin-left: 1.5rem;
+  }
+  .adversarial-card li,
+  .logic-review li {
+    margin-left: 1.5rem;
+  }
 
   /* ── Data-point list ── */
   .dp-list {
@@ -1403,29 +1432,6 @@ def _render_recent_earnings(opening: OpeningSections) -> str:
     )
 
 
-def _render_executive_dashboard(dashboard: ExecutiveDashboard) -> str:
-    """Render the TL;DR first-page summary card."""
-    return (
-        "<div class='section-wrapper' id='executive-dashboard'>"
-        "<h2>Executive Dashboard</h2>"
-        "<div class='card' style='border-left:4px solid var(--mck-navy);'>"
-        "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;'>"
-        "<div>"
-        "<span class='label' style='color:var(--red);'>Top Risk</span>"
-        f"<p style='margin-top:8px;'>{_e(dashboard.top_risk)}</p>"
-        "</div>"
-        "<div>"
-        "<span class='label' style='color:var(--green);'>Top Opportunity</span>"
-        f"<p style='margin-top:8px;'>{_e(dashboard.top_opportunity)}</p>"
-        "</div>"
-        "<div>"
-        "<span class='label' style='color:var(--mck-blue);'>Critical Deadline</span>"
-        f"<p style='margin-top:8px;'>{_e(dashboard.critical_deadline)}</p>"
-        "</div>"
-        "</div></div></div>"
-    )
-
-
 def _render_priority_themes(themes: PriorityThemes) -> str:
     parts = [
         "<div class='section-wrapper' id='priority-themes'>",
@@ -1636,7 +1642,7 @@ def _render_adversarial_assessment(adversarial: AdversarialAssessment) -> str:
     scenario_cards = []
     for s in adversarial.scenarios:
         scenario_cards.append(
-            "<div class='card' style='margin-top:6px;border-left:3px solid var(--red);'>"
+            "<div class='adversarial-card' style='border-left:3px solid var(--red);'>"
             f"<div style='font-family:var(--font-sans);font-size:13px;font-weight:700;"
             f"color:var(--red);margin-bottom:6px;'>{_e(s.title)}</div>"
             "<div style='display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;'>"
@@ -1658,7 +1664,7 @@ def _render_adversarial_assessment(adversarial: AdversarialAssessment) -> str:
         "<div style='font-family:var(--font-sans);font-size:11px;color:var(--text-muted);"
         "margin-bottom:12px;'>Red-cell analysis: blind spots and contrarian risks in the priority themes.</div>"
         + "".join(scenario_cards)
-        + "<div class='card' style='margin-top:6px;border-left:3px solid var(--mck-navy);'>"
+        + "<div class='adversarial-card' style='border-left:3px solid var(--mck-navy);'>"
         "<span class='label' style='color:var(--mck-navy);'>Systemic Meta-Risk</span>"
         f"<p style='margin-top:8px;'>{_e(adversarial.meta_risk)}</p>"
         "</div>"
@@ -1684,7 +1690,7 @@ def _render_trade_logic_review(review: TradeLogicReview) -> str:
     }.get(review.conviction_adjustment.lower().split()[0], "var(--text-primary)")
 
     return (
-        "<div class='card' style='margin-top:6px;border-left:3px solid #888;'>"
+        "<div class='logic-review' style='border-left:3px solid #888;'>"
         "<span class='label'>Logic Review</span>"
         "<div style='display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;'>"
         "<div>"
@@ -1835,7 +1841,6 @@ def compile_html_document(
     tactical_quants: Optional[list] = None,
     adversarial: Optional[AdversarialAssessment] = None,
     logic_review: Optional[TradeLogicReview] = None,
-    dashboard: Optional[ExecutiveDashboard] = None,
 ) -> str:
     """
     Concatenate all rendered HTML sections into a single styled document.
@@ -1846,8 +1851,6 @@ def compile_html_document(
         briefing_date = date.today()
 
     sections = [_render_header(briefing_date)]
-    if dashboard is not None:
-        sections.append(_render_executive_dashboard(dashboard))
     sections += [
         _render_market_snapshot(market_snapshot or []),
         _render_intelligence_summary(appendix),
@@ -1892,7 +1895,6 @@ def aggregate_json_output(
     positional: Optional[PositionalTradeSet] = None,
     tactical:   Optional[TacticalTradeSet] = None,
     briefing_date: Optional[date] = None,
-    dashboard:  Optional[ExecutiveDashboard] = None,
 ) -> dict:
     """
     Aggregate all validated Pydantic objects into a single master dictionary
@@ -1910,7 +1912,6 @@ def aggregate_json_output(
         "date":              briefing_date.isoformat(),
         "opening_sections":  opening.model_dump(),
         "priority_themes":   themes.model_dump(),
-        "executive_dashboard": dashboard.model_dump() if dashboard is not None else None,
         "strategic_trade":   strategic.model_dump() if strategic is not None else None,
         "positional_trades": positional.model_dump() if positional is not None else None,
         "tactical_trades":   tactical.model_dump() if tactical is not None else None,

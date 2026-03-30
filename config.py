@@ -13,7 +13,8 @@ from pathlib import Path
 # ══════════════════════════════════════════════════════════════════════════════
 
 # MODEL = "gemini-3.1-flash-lite-preview"
-MODEL = "gemini-3-flash-preview"
+# MODEL = "gemini-3-flash-preview"
+MODEL = "gemini-2.5-pro"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GENERATION TEMPERATURES
@@ -35,10 +36,10 @@ TEMP_ADVERSARIAL  = 0.7   # Adversarial scenario assessment (higher — contrari
 # ══════════════════════════════════════════════════════════════════════════════
 
 GMAIL_LABEL        = "DailyBriefing"  # Gmail label to query for intelligence emails
-FETCH_WINDOW_HOURS = 24               # Rolling lookback window for email fetching (hours)
+FETCH_WINDOW_HOURS = 96               # Rolling lookback window for email fetching (hours)
 MAX_EMAILS         = 50               # Hard cap on emails retrieved per run
 PURGE_LABELS       = True             # Remove GMAIL_LABEL after a successful run.
-                                      # Override with --no-purge for testing.
+                                      # Override with --no-pu24rge for testing.
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -61,11 +62,11 @@ MEMORY_DAYS = 180                            # Records older than this are purge
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ECONOMIC CALENDAR
-# Requires FINNHUB_API_KEY in .env (free tier at finnhub.io — 60 calls/min).
+# Requires FMP_API_KEY in .env (financialmodelingprep.com).
 # ══════════════════════════════════════════════════════════════════════════════
 
 CALENDAR_DAYS_AHEAD = 7    # How many calendar days ahead to fetch scheduled releases
-CALENDAR_IMPACT     = "high"  # Minimum Finnhub impact level: "high", "medium", or "low"
+CALENDAR_IMPACT     = "high"  # Minimum FMP impact level: "high", "medium", or "low"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -90,6 +91,12 @@ RETRY_BASE_DELAY   = 5.0    # Initial wait in seconds before the first retry.
                             # retries when the model is genuinely rate-limited.
 RETRY_BACKOFF      = 2.0    # Multiplicative factor applied to delay each retry
 RETRY_JITTER       = 2.0    # Max seconds of random jitter added per retry (increased from 1.0)
+LLM_TIMEOUT_SECONDS = 120.0  # Per-call deadline passed to asyncio.wait_for().
+                              # If generate_content stalls without raising, this
+                              # fires asyncio.TimeoutError which feeds the retry
+                              # loop (retriable) rather than locking the semaphore
+                              # permanently.  120 s is comfortably above the p99
+                              # latency for large structured JSON responses.
 
 MAX_CONCURRENT_LLM_CALLS = 3  # Maximum number of simultaneous active Gemini API calls.
                                # Prevents 503 ServiceUnavailable under concurrent Phase B/C load.
@@ -135,3 +142,16 @@ TEMP_MERGE              = 0.15     # Reduce-phase synthesis temperature (tighter
 GENERATE_TRADES = True  # Set False to skip all trade generation (strategic, positional,
                         # tactical) and quantitative analysis.  Useful for testing
                         # the briefing narrative without waiting for trade generation.
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LLM TELEMETRY
+# Writes one JSON line per LLM call to TELEMETRY_PATH (append-only JSONL).
+# Each record contains: timestamp, model, call label, prompt/response character
+# counts, token usage (prompt + completion), latency in seconds, and the retry
+# attempt number on which the call succeeded.
+# Set TELEMETRY_ENABLED = False to silence all telemetry writes.
+# ══════════════════════════════════════════════════════════════════════════════
+
+TELEMETRY_ENABLED = True
+TELEMETRY_PATH    = Path("telemetry.jsonl")  # Relative to the working directory

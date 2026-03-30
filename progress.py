@@ -199,6 +199,26 @@ class BriefingProgress:
                     description=f"[dim]{label}[/dim]",
                 )
 
+    async def resume_step(self, key: str) -> None:
+        """
+        Mark a named step as bypassed from a loaded checkpoint without executing it.
+
+        Called during `--resume` runs for every phase that was already completed
+        in a prior run.  Advances the M/N counter and logs a ↩ indicator so the
+        summary table still shows all steps with a 0.00s duration entry.
+        """
+        step  = self._step_map.get(key)
+        label = step.label if step else key
+        self._times[key] = 0.0
+        self._completed += 1
+        self._logger.info("  ↩  %s — resumed from checkpoint", label)
+        if self._task_id is not None:
+            self._progress.update(
+                self._task_id,
+                completed=self._completed,
+                description=f"[dim]{label} ↩[/dim]",
+            )
+
     def summary_table(self) -> Table:
         """Rich Table summarising each step's wall-clock duration."""
         table = Table(
@@ -213,7 +233,12 @@ class BriefingProgress:
         table.add_column("Duration", style="green", justify="right", width=10)
         for i, step in enumerate(self._steps, 1):
             t = self._times.get(step.key)
-            duration = f"{t:.2f}s" if t is not None else "[dim]skipped[/dim]"
+            if t is None:
+                duration = "[dim]skipped[/dim]"
+            elif t == 0.0 and step.key in self._times:
+                duration = "[dim]↩ resumed[/dim]"
+            else:
+                duration = f"{t:.2f}s"
             table.add_row(str(i), step.label, duration)
         return table
 

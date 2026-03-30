@@ -128,6 +128,14 @@ class Trade(BaseModel):
             "not 'monetary policy risk')."
         ),
     )
+    target_price: Optional[str] = Field(
+        None,
+        description=(
+            "Specific numeric price target calculated from live financial data and thesis magnitude. "
+            "Format as a dollar string (e.g., '$187.50').  MANDATORY for strategic trades — "
+            "do not leave null when generating strategic or positional trades."
+        ),
+    )
     entry_notes: Optional[str] = Field(None, description="Entry level observations or conditions")
     target_notes: Optional[str] = Field(None, description="Target level observations or conditions")
     stop_notes: Optional[str] = Field(None, description="Stop-loss level observations or conditions")
@@ -305,25 +313,6 @@ class TacticalQuant(BaseModel):
     risk_reward: str = Field(..., description="Risk/reward ratio (e.g., '3.2:1')")
     catalyst_date: Optional[str] = Field(None, description="ISO date of the specific catalyst event if applicable")
 
-
-# ── Quant Batch Models ────────────────────────────────────────────────────────
-
-class QuantAnalysisBatch(BaseModel):
-    analyses: List[QuantAnalysis] = Field(
-        ...,
-        min_length=1,
-        max_length=3,
-        description="One QuantAnalysis per trade, in the same order as the trades provided.",
-    )
-
-
-class TacticalQuantSet(BaseModel):
-    quants: List[TacticalQuant] = Field(
-        ...,
-        min_length=1,
-        max_length=3,
-        description="One TacticalQuant per trade, in the same order as the trades provided.",
-    )
 
 
 # ── Opening Sections Models ───────────────────────────────────────────────────
@@ -642,36 +631,6 @@ class PriorityThemes(BaseModel):
         if sorted(ranks) != [1, 2, 3]:
             raise ValueError(f"themes must have ranks [1, 2, 3], got {ranks}")
         return v
-
-
-# ── Executive Dashboard ───────────────────────────────────────────────────────
-
-class ExecutiveDashboard(BaseModel):
-    """
-    TL;DR first-page summary rendered as the opening page of the PDF.
-    Distills the briefing to its three most actionable data points.
-    """
-    top_risk: str = Field(
-        ...,
-        description=(
-            "The single highest-priority risk from the unified themes: 1-2 sentences naming "
-            "the specific threat, the transmission mechanism, and the most exposed instruments."
-        ),
-    )
-    top_opportunity: str = Field(
-        ...,
-        description=(
-            "The single best trade opportunity from the strategic trade thesis: 1-2 sentences "
-            "naming the instrument, the directional view, and the primary catalyst."
-        ),
-    )
-    critical_deadline: str = Field(
-        ...,
-        description=(
-            "The single most time-sensitive scheduled event from the economic calendar: "
-            "date, event name, and why it is the highest-stakes release for markets this week."
-        ),
-    )
 
 
 # ── Appendix ──────────────────────────────────────────────────────────────────

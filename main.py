@@ -9,6 +9,7 @@ Usage:
   python main.py --since-hours 48         # extend the fetch window for this run only
   python main.py path/to/intel.txt        # use a local file instead of Gmail
   python main.py --date 2025-06-15        # back-date the briefing record
+  python main.py --resume                 # resume from pipeline_checkpoint.json after a crash
 
 Pipeline execution order:
   Pre-A    [sequential]: Multi-stage summarization — Map (N concurrent chunk summaries) → Reduce (1 merge)
@@ -53,19 +54,18 @@ from generators import (
     generate_master_intelligence_map,
     generate_opening_calendar,
     generate_opening_narrative,
-    generate_quant_analysis_batch,
     generate_single_positional_trade,
+    generate_single_quant_analysis,
+    generate_single_tactical_quant,
     generate_single_tactical_trade,
     generate_strategic_instrument,
     generate_strategic_thesis,
-    generate_tactical_quant_batch,
     generate_trade_logic_review,
     generate_unified_themes,
     get_client,
 )
 from models import (
     AppendixOutput,
-    ExecutiveDashboard,
     OpeningSections,
     PositionalTradeSet,
     StrategicTrade,
@@ -74,12 +74,17 @@ from models import (
 from ingestion import load_email_intelligence, unlabel_emails
 from storage import (
     commit_to_longitudinal_memory,
+    delete_checkpoint,
     init_database,
+    load_checkpoint,
     purge_expired_memory,
+    save_checkpoint,
     save_html_briefing,
     save_json_data,
 )
 from tools import (
+    calculate_price_correlations,
+    close_yf_session,
     fetch_earnings_calendar,
     fetch_economic_calendar,
     fetch_market_snapshot,
@@ -122,6 +127,7 @@ async def run_briefing(
     since_hours: int = config.FETCH_WINDOW_HOURS,
     purge_labels: bool = config.PURGE_LABELS,
     preview: bool = False,
+    resume: bool = False,
 ) -> None:
     """
     Full briefing generation pipeline.
@@ -134,6 +140,8 @@ async def run_briefing(
         purge_labels:          If True (default), remove the DailyBriefing label
                                from ingested emails after successful delivery.
                                Set False during testing to preserve emails.
+        resume:                If True, load pipeline_checkpoint.json and skip
+                               any phases already recorded as completed.
     """
     if target_date is None:
         target_date = date.today()
@@ -144,6 +152,11 @@ async def run_briefing(
     _log("SYSTEM", f"Intelligence Briefing — {target_date.isoformat()}")
     if not purge_labels:
         _log("SYSTEM", "Label purge DISABLED — ingested emails will not be unlabeled.")
+
+    checkpoint: dict = load_checkpoint() if resume else {}
+    completed_phases: set[str] = set(checkpoint.get("completed_phases", []))
+    if resume and completed_phases:
+        _log("RESUME", f"Resuming from checkpoint — skipping: {', '.join(sorted(completed_phases))}")
 
     # Build the step list before the pipeline starts so the progress bar's
     # M/N count is accurate from the first step.
@@ -172,26 +185,54 @@ async def run_briefing(
         # Phase A and Phase B functions receive master_intel instead of the raw
         # email dump, cutting per-call input tokens ~90%.  Skipped automatically
         # when content is below SUMMARIZER_THRESHOLD or SUMMARIZER_ENABLED=False.
-        async with bp.step("summarize"):
-            master_intel = await generate_master_intelligence_map(client, payload.content)
+        if resume and "summarize" in completed_phases:
+            await bp.resume_step("summarize")
+            master_intel = checkpoint["master_intel"]
+        else:
+            async with bp.step("summarize"):
+                master_intel = await generate_master_intelligence_map(client, payload.content)
+            save_checkpoint({"master_intel": master_intel, "completed_phases": list(completed_phases | {"summarize"})})
+            completed_phases.add("summarize")
         _log("SUMMARIZER", f"{len(payload.content):,} raw chars → {len(master_intel):,} master map chars")
 
         # ── PHASE A: AppendixDB ‖ Themes ‖ Market data [all concurrent] ────────
-        async with bp.step("phase_a"):
-            loop = asyncio.get_running_loop()
-            (
-                appendix_db,
-                themes,
-                eco_events,
-                earnings_result,
-                market_snapshot,
-            ) = await asyncio.gather(
-                generate_appendix_database(client, master_intel),
-                generate_unified_themes(client, master_intel),
-                fetch_economic_calendar(config.CALENDAR_DAYS_AHEAD, config.CALENDAR_IMPACT),
-                fetch_earnings_calendar(days_behind=2, days_ahead=config.CALENDAR_DAYS_AHEAD),
-                fetch_market_snapshot(),
+        if resume and "phase_a" in completed_phases:
+            await bp.resume_step("phase_a")
+            from models import AppendixDatabase, PriorityThemes
+            from tools import EarningsEntry, EconomicEvent, MarketTick
+            appendix_db    = AppendixDatabase.model_validate(checkpoint["appendix_db"])
+            themes         = PriorityThemes.model_validate(checkpoint["themes"])
+            eco_events     = [EconomicEvent.model_validate(e) for e in checkpoint["eco_events"]]
+            earnings_result = (
+                [EarningsEntry.model_validate(e) for e in checkpoint["upcoming_earnings"]],
+                [EarningsEntry.model_validate(e) for e in checkpoint["recent_earnings"]],
             )
+            market_snapshot = [MarketTick.model_validate(t) for t in checkpoint["market_snapshot"]]
+        else:
+            async with bp.step("phase_a"):
+                (
+                    appendix_db,
+                    themes,
+                    eco_events,
+                    earnings_result,
+                    market_snapshot,
+                ) = await asyncio.gather(
+                    generate_appendix_database(client, master_intel),
+                    generate_unified_themes(client, master_intel),
+                    fetch_economic_calendar(config.CALENDAR_DAYS_AHEAD, config.CALENDAR_IMPACT),
+                    fetch_earnings_calendar(days_behind=2, days_ahead=config.CALENDAR_DAYS_AHEAD),
+                    fetch_market_snapshot(),
+                )
+            save_checkpoint({
+                "appendix_db":       appendix_db.model_dump(),
+                "themes":            themes.model_dump(),
+                "eco_events":        [e.model_dump() for e in eco_events],
+                "upcoming_earnings": [e.model_dump() for e in earnings_result[0]],
+                "recent_earnings":   [e.model_dump() for e in earnings_result[1]],
+                "market_snapshot":   [t.model_dump() for t in market_snapshot],
+                "completed_phases":  list(completed_phases | {"phase_a"}),
+            })
+            completed_phases.add("phase_a")
 
         upcoming_earnings, recent_earnings = earnings_result
         economic_calendar_str = format_economic_calendar_for_prompt(eco_events)
@@ -212,12 +253,10 @@ async def run_briefing(
 
         async with bp.step("between"):
             historical_context, financial_data_map = await asyncio.gather(
-                loop.run_in_executor(
-                    None,
-                    lambda: retrieve_historical_context(
-                        entities=appendix_db.key_entities,
-                        situations=appendix_db.key_situations,
-                    ),
+                asyncio.to_thread(
+                    retrieve_historical_context,
+                    entities=appendix_db.key_entities,
+                    situations=appendix_db.key_situations,
                 ),
                 verify_financial_data(all_tickers),
             )
@@ -253,6 +292,8 @@ async def run_briefing(
 
         async with bp.step("phase_b"):
             _b_results = dict(zip(_b_keys, await asyncio.gather(*_b_tasks)))
+        save_checkpoint({"completed_phases": list(completed_phases | {"phase_b"})})
+        completed_phases.add("phase_b")
 
         opening_narrative = _b_results["opening_narrative"]
         opening_calendar  = _b_results["opening_calendar"]
@@ -279,21 +320,70 @@ async def run_briefing(
         strategic = positional = tactical = None
         strategic_quant = positional_quants = tactical_quants = None
         logic_review = None
-        dashboard = None
         correlation_matrix_str = "No correlation data available."
 
         if config.GENERATE_TRADES:
-            # Assemble StrategicTrade from the two split Phase B results
-            strategic_thesis     = _b_results["strategic_thesis"]
-            strategic_instrument = _b_results["strategic_instrument"]
-            strategic = StrategicTrade(
-                trade=strategic_instrument.trade,
-                macro_thesis=strategic_thesis.macro_thesis,
-                time_horizon_months=strategic_thesis.time_horizon_months,
-                historical_precedents=strategic_thesis.historical_precedents,
-                conviction_level=strategic_thesis.conviction_level,
-            )
-            _log("PHASE B", f"Strategic trade: {strategic.trade.instrument} ({strategic.trade.direction.value})")
+            # ── Agentic self-correction loop for strategic trade (max 3 attempts) ──
+            # Flow: generate thesis + instrument → quant → logic_review.
+            # If logic_review.conviction_adjustment == "Downgrade", regenerate
+            # thesis and instrument with the critique injected as a preamble.
+            _MAX_STRATEGIC_ATTEMPTS = 3
+            _previous_critique: str | None = None
+            strategic = None
+            strategic_quant = None
+            logic_review = None
+
+            for _attempt in range(_MAX_STRATEGIC_ATTEMPTS):
+                _log("STRATEGIC", f"Strategic trade generation — attempt {_attempt + 1}/{_MAX_STRATEGIC_ATTEMPTS}")
+                strategic_thesis, strategic_instrument = await asyncio.gather(
+                    generate_strategic_thesis(
+                        client, master_intel, historical_context, themes,
+                        previous_critique=_previous_critique,
+                    ),
+                    generate_strategic_instrument(
+                        client, master_intel, themes, financial_data_str,
+                        previous_critique=_previous_critique,
+                    ),
+                )
+                strategic = StrategicTrade(
+                    trade=strategic_instrument.trade,
+                    macro_thesis=strategic_thesis.macro_thesis,
+                    time_horizon_months=strategic_thesis.time_horizon_months,
+                    historical_precedents=strategic_thesis.historical_precedents,
+                    conviction_level=strategic_thesis.conviction_level,
+                )
+                _log("PHASE B", f"Strategic trade: {strategic.trade.instrument} ({strategic.trade.direction.value})")
+
+                # Quick quant + logic review to evaluate quality
+                _strat_json = strategic.trade.model_dump_json()
+                strategic_quant = await generate_single_quant_analysis(
+                    client, _strat_json, financial_data_str, historical_context,
+                    correlation_matrix=correlation_matrix_str,
+                )
+                logic_review = await generate_trade_logic_review(
+                    client, strategic, strategic_quant,
+                    correlation_matrix=correlation_matrix_str,
+                )
+
+                _adj = logic_review.conviction_adjustment.strip().lower()
+                if not _adj.startswith("downgrade") or _attempt == _MAX_STRATEGIC_ATTEMPTS - 1:
+                    # Accept: conviction maintained/upgraded, or attempts exhausted
+                    if _adj.startswith("downgrade") and _attempt == _MAX_STRATEGIC_ATTEMPTS - 1:
+                        _log("WARN", "Max self-correction attempts reached — accepting downgraded strategic trade.")
+                    else:
+                        _log("STRATEGIC", f"Strategic trade accepted (conviction: {logic_review.conviction_adjustment}).")
+                    break
+
+                # Build critique string for next iteration
+                fallacy_lines = "\n".join(f"  • {f}" for f in logic_review.fallacies_identified) or "  (none identified)"
+                gap_lines     = "\n".join(f"  • {g}" for g in logic_review.analytical_gaps) or "  (none identified)"
+                _previous_critique = (
+                    f"Verdict: {logic_review.verdict}\n\n"
+                    f"Logical Fallacies:\n{fallacy_lines}\n\n"
+                    f"Analytical Gaps:\n{gap_lines}\n\n"
+                    f"Steelman Counter-Argument: {logic_review.steelman}"
+                )
+                _log("STRATEGIC", f"Downgrade verdict — regenerating (attempt {_attempt + 2}).")
 
             strategic_inst = strategic.trade.instrument
             intel_summary  = appendix_db.intelligence_summary
@@ -328,6 +418,12 @@ async def run_briefing(
                 _log("PHASE B", f"Positional 1: {p1.trade.instrument} ({p1.trade.direction.value})")
                 _log("PHASE B", f"Positional 2: {p2.trade.instrument} ({p2.trade.direction.value})")
             positional = PositionalTradeSet(trades=[p1.trade, p2.trade])
+            save_checkpoint({
+                "strategic":        strategic.model_dump(),
+                "positional":       positional.model_dump(),
+                "completed_phases": list(completed_phases | {"positional"}),
+            })
+            completed_phases.add("positional")
 
             # ── Tactical map-reduce ────────────────────────────────────────────
             positional_insts = [p1.trade.instrument, p2.trade.instrument]
@@ -349,6 +445,11 @@ async def run_briefing(
                     deduped.append(t)
                     _log("PHASE B", f"Tactical {idx}: {t.trade.instrument} ({t.trade.direction.value})")
             tactical = TacticalTradeSet(trades=[t.trade for t in deduped])
+            save_checkpoint({
+                "tactical":         tactical.model_dump(),
+                "completed_phases": list(completed_phases | {"tactical"}),
+            })
+            completed_phases.add("tactical")
 
             # ── Supplemental hydration ─────────────────────────────────────────
             _all_trade_raws = [
@@ -377,59 +478,53 @@ async def run_briefing(
                 for raw in _all_trade_raws
                 if (normalized := normalize_ticker(raw)) is not None
             })
-            correlation_matrix_str = await loop.run_in_executor(
-                None,
-                lambda: __import__("tools").calculate_price_correlations(
-                    _corr_tickers, financial_data_map
-                ),
+            correlation_matrix_str = await calculate_price_correlations(
+                _corr_tickers, financial_data_map
             )
             _log("CORRELATION", f"Correlation matrix computed for {len(_corr_tickers)} instrument(s).")
 
-            # ── Executive Dashboard ────────────────────────────────────────────
-            # Build from already-generated data: top theme → top risk,
-            # strategic trade → top opportunity, first calendar event → deadline.
-            _top_theme = themes.themes[0]
-            _first_eco = eco_events[0] if eco_events else None
-            dashboard = ExecutiveDashboard(
-                top_risk=(
-                    f"{_top_theme.title}: {_top_theme.market_impact} "
-                    f"[Risk: {_top_theme.risk_level.value}]"
-                ),
-                top_opportunity=(
-                    f"{strategic.trade.instrument} ({strategic.trade.direction.value}) — "
-                    f"{strategic.trade.geopolitical_catalyst}"
-                ),
-                critical_deadline=(
-                    f"{_first_eco.date_str} {_first_eco.event}: {_first_eco.market_relevance}"
-                    if _first_eco else "No high-impact scheduled releases in the coming week."
-                ),
-            )
-            _log("DASHBOARD", "Executive Dashboard assembled.")
-
-            # ── Phase C: Quant analysis ────────────────────────────────────────
+            # ── Phase C: Quant analysis (map-reduce fan-out) ──────────────────
+            # Strategic quant + logic_review were already produced by the self-
+            # correction loop above.  Here we fan out positional and tactical quants.
             async with bp.step("phase_c"):
-                strat_pos_jsons = [
-                    strategic.trade.model_dump_json(),
-                    *[t.model_dump_json() for t in positional.trades],
-                ]
+                _quant_sem = asyncio.Semaphore(3)
+
+                async def _pos_quant(trade_json_str: str) -> object:
+                    async with _quant_sem:
+                        return await generate_single_quant_analysis(
+                            client, trade_json_str, financial_data_str,
+                            historical_context,
+                            correlation_matrix=correlation_matrix_str,
+                        )
+
+                async def _tac_quant(trade_json_str: str) -> object:
+                    async with _quant_sem:
+                        return await generate_single_tactical_quant(
+                            client, trade_json_str, financial_data_str,
+                        )
+
+                pos_jsons = [t.model_dump_json() for t in positional.trades]
                 tac_jsons = [t.model_dump_json() for t in tactical.trades]
-                quant_batch, tac_quant_set = await asyncio.gather(
-                    generate_quant_analysis_batch(
-                        client, strat_pos_jsons, financial_data_str, historical_context,
-                        correlation_matrix=correlation_matrix_str,
-                    ),
-                    generate_tactical_quant_batch(client, tac_jsons, financial_data_str),
+
+                pos_quant_results, tac_quant_results = await asyncio.gather(
+                    asyncio.gather(*[_pos_quant(j) for j in pos_jsons]),
+                    asyncio.gather(*[_tac_quant(j) for j in tac_jsons]),
                 )
 
-            strategic_quant   = quant_batch.analyses[0]
-            positional_quants = quant_batch.analyses[1:]
-            tactical_quants   = tac_quant_set.quants
-
-            async with bp.step("logic_review"):
-                logic_review = await generate_trade_logic_review(
-                    client, strategic, strategic_quant,
-                    correlation_matrix=correlation_matrix_str,
-                )
+            positional_quants = list(pos_quant_results)
+            tactical_quants   = list(tac_quant_results)
+            save_checkpoint({
+                "strategic_quant":   strategic_quant.model_dump(),
+                "positional_quants": [q.model_dump() for q in positional_quants],
+                "tactical_quants":   [q.model_dump() for q in tactical_quants],
+                "completed_phases":  list(completed_phases | {"phase_c"}),
+            })
+            completed_phases.add("phase_c")
+            save_checkpoint({
+                "logic_review":     logic_review.model_dump(),
+                "completed_phases": list(completed_phases | {"logic_review"}),
+            })
+            completed_phases.add("logic_review")
 
         # ── Level 2: Compile and aggregate ────────────────────────────────────
         async with bp.step("compile"):
@@ -447,7 +542,6 @@ async def run_briefing(
                 tactical_quants=tactical_quants,
                 adversarial=adversarial,
                 logic_review=logic_review,
-                dashboard=dashboard,
             )
             json_output = aggregate_json_output(
                 opening=opening,
@@ -457,7 +551,6 @@ async def run_briefing(
                 positional=positional,
                 tactical=tactical,
                 briefing_date=target_date,
-                dashboard=dashboard,
             )
 
         # ── Level 1: Save to disk ──────────────────────────────────────────────
@@ -491,6 +584,9 @@ async def run_briefing(
                 await unlabel_emails(payload.message_ids)
         elif not purge_labels and payload.from_gmail:
             _log("LEVEL 6", f"Skipping label removal ({len(payload.message_ids)} email(s) left labeled).")
+
+        await close_yf_session()
+        delete_checkpoint()
 
         total = time.perf_counter() - pipeline_start
         _logger.info("")
@@ -554,6 +650,15 @@ def _parse_args() -> argparse.Namespace:
         default=False,
         help="Open the generated HTML briefing in the default browser after generation.",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        default=False,
+        help=(
+            "Resume a previously interrupted run from the last checkpoint.  "
+            "Skips phases already recorded in pipeline_checkpoint.json."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -575,5 +680,6 @@ if __name__ == "__main__":
             since_hours=args.since_hours,
             purge_labels=False if args.no_purge else config.PURGE_LABELS,
             preview=args.preview,
+            resume=args.resume,
         )
     )

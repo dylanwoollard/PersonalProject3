@@ -7,6 +7,9 @@ Functions:
   purge_expired_memory          — Delete records older than N days
   save_html_briefing            — Write compiled HTML to disk
   save_json_data                — Write aggregated JSON to disk
+  save_checkpoint               — Merge pipeline state into checkpoint.json
+  load_checkpoint               — Load checkpoint.json (returns {} if absent)
+  delete_checkpoint             — Remove checkpoint.json after successful run
 """
 
 import json
@@ -19,8 +22,63 @@ import aiofiles
 
 import config
 
-DB_PATH    = config.DB_PATH
-OUTPUT_DIR = config.OUTPUT_DIR
+DB_PATH         = config.DB_PATH
+OUTPUT_DIR      = config.OUTPUT_DIR
+CHECKPOINT_PATH = Path("pipeline_checkpoint.json")
+
+
+# ── Checkpointing ─────────────────────────────────────────────────────────────
+
+def save_checkpoint(updates: dict) -> None:
+    """
+    Merge `updates` into the on-disk checkpoint file (pipeline_checkpoint.json).
+
+    The file is read-modify-written so multiple calls accumulate state without
+    overwriting prior phases.  `updates` should include a `completed_phases`
+    key (list[str]) that grows with each phase; the caller is responsible for
+    passing the full accumulated list each time.
+
+    Called immediately after each major phase exits successfully so a mid-run
+    crash can be resumed from the last completed phase.
+
+    Pydantic models should be passed via `.model_dump()`.  Dataclass instances
+    via `dataclasses.asdict()`.  Plain strings and dicts are stored as-is.
+    """
+    existing: dict = {}
+    if CHECKPOINT_PATH.exists():
+        try:
+            existing = json.loads(CHECKPOINT_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    existing.update(updates)
+    CHECKPOINT_PATH.write_text(
+        json.dumps(existing, indent=2, ensure_ascii=False, default=str),
+        encoding="utf-8",
+    )
+
+
+def load_checkpoint() -> dict:
+    """
+    Return the checkpoint dict from pipeline_checkpoint.json.
+    Returns an empty dict if the file does not exist or cannot be parsed.
+    """
+    if not CHECKPOINT_PATH.exists():
+        return {}
+    try:
+        return json.loads(CHECKPOINT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def delete_checkpoint() -> None:
+    """
+    Remove pipeline_checkpoint.json after a successful pipeline run.
+    Safe to call even if the file does not exist.
+    """
+    try:
+        CHECKPOINT_PATH.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 # ── Schema ────────────────────────────────────────────────────────────────────

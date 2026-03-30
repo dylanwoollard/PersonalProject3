@@ -10,9 +10,11 @@ Schema:  Pydantic models passed as response_schema for strict JSON generation.
 """
 
 import asyncio
+import json
 import logging
 import os
 import random
+import time
 
 from google import genai
 from google.genai import types
@@ -50,6 +52,8 @@ from prompts import (
     OPENING_NARRATIVE_PROMPT,
     POSITIONAL_TRADES_PROMPT,
     SINGLE_POSITIONAL_TRADE_PROMPT,
+    SINGLE_QUANT_ANALYSIS_PROMPT,
+    SINGLE_TACTICAL_QUANT_PROMPT,
     SINGLE_TACTICAL_TRADE_PROMPT,
     STRATEGIC_INSTRUMENT_PROMPT,
     STRATEGIC_THESIS_PROMPT,
@@ -63,6 +67,52 @@ from prompts import (
 
 MODEL = config.MODEL
 
+# ── Telemetry ─────────────────────────────────────────────────────────────────
+
+def _emit_telemetry(
+    call_label: str,
+    prompt_chars: int,
+    response_chars: int,
+    latency_s: float,
+    attempt: int,
+    temperature: float,
+    prompt_tokens: int | None,
+    completion_tokens: int | None,
+) -> None:
+    """
+    Append one JSON line to TELEMETRY_PATH.
+
+    Each record captures: ISO timestamp, model name, call label (schema class
+    name or free-text generation label), prompt/response character counts,
+    token usage from the API response (None when not reported by the SDK),
+    wall-clock latency in seconds, retry attempt number, and temperature.
+
+    Writes are synchronous and intentionally fast (< 1 ms) — the JSONL file is
+    opened in append mode so no read-modify-write is needed.  A failure to write
+    telemetry is silently suppressed so it never interrupts the pipeline.
+    """
+    if not config.TELEMETRY_ENABLED:
+        return
+    record = {
+        "ts":                 __import__("datetime").datetime.utcnow().isoformat() + "Z",
+        "model":              MODEL,
+        "call":               call_label,
+        "prompt_chars":       prompt_chars,
+        "response_chars":     response_chars,
+        "prompt_tokens":      prompt_tokens,
+        "completion_tokens":  completion_tokens,
+        "latency_s":          round(latency_s, 3),
+        "attempt":            attempt,
+        "temperature":        temperature,
+    }
+    try:
+        with open(config.TELEMETRY_PATH, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+    except Exception:
+        pass  # telemetry failure must never interrupt the pipeline
+
+
+# ── Semaphore ─────────────────────────────────────────────────────────────────
 # Semaphore caps the number of simultaneous active Gemini HTTP calls.
 # Held only during the actual API call — released during retry sleeps so other
 # coroutines can acquire it immediately.
@@ -92,6 +142,7 @@ async def _generate_structured(
     prompt: str,
     response_schema: type,
     temperature: float = 0.3,
+    _label: str | None = None,
 ) -> object:
     """
     Send a prompt to Gemini with structured output enforcement.
@@ -110,25 +161,32 @@ async def _generate_structured(
     Returns:
         A validated instance of response_schema.
     """
+    call_label = _label or response_schema.__name__
+
     # Stagger concurrent calls to reduce simultaneous quota hits.
     # 2s window distributes 5+ concurrent Phase-B calls across the rate-limit window.
     await asyncio.sleep(random.uniform(0, 2.0))
 
     delay = config.RETRY_BASE_DELAY
     for attempt in range(config.RETRY_MAX_ATTEMPTS):
+        t0 = time.perf_counter()
         try:
             async with _llm_semaphore:
-                response = await client.aio.models.generate_content(
-                    model=MODEL,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=temperature,
-                        response_mime_type="application/json",
-                        response_schema=response_schema,
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        max_output_tokens=config.MAX_OUTPUT_TOKENS,
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=MODEL,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=temperature,
+                            response_mime_type="application/json",
+                            response_schema=response_schema,
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            max_output_tokens=config.MAX_OUTPUT_TOKENS,
+                        ),
                     ),
+                    timeout=config.LLM_TIMEOUT_SECONDS,
                 )
+            latency = time.perf_counter() - t0
 
             # Detect truncation before attempting JSON parse.
             try:
@@ -149,7 +207,21 @@ async def _generate_structured(
                     f"Possible safety block. finish_reason={getattr(getattr(response, 'candidates', [None])[0], 'finish_reason', 'unknown')}"
                 )
 
-            return response_schema.model_validate_json(response.text)
+            result = response_schema.model_validate_json(response.text)
+
+            # ── Telemetry record ──────────────────────────────────────────────
+            usage = getattr(response, "usage_metadata", None)
+            _emit_telemetry(
+                call_label=call_label,
+                prompt_chars=len(prompt),
+                response_chars=len(response.text),
+                latency_s=latency,
+                attempt=attempt + 1,
+                temperature=temperature,
+                prompt_tokens=getattr(usage, "prompt_token_count", None),
+                completion_tokens=getattr(usage, "candidates_token_count", None),
+            )
+            return result
 
         except Exception as exc:
             exc_str = str(exc)
@@ -164,6 +236,11 @@ async def _generate_structured(
                 # produces structurally valid JSON that fails Pydantic constraints.
                 # A retry with the same prompt usually succeeds.
                 or isinstance(exc, ValidationError)
+                # Retry on stall: asyncio.wait_for fires TimeoutError when the
+                # model holds the connection open without completing.  Classified
+                # as retriable so the semaphore slot is released and the call is
+                # re-queued through the normal exponential backoff path.
+                or isinstance(exc, asyncio.TimeoutError)
             )
             last_attempt = attempt == config.RETRY_MAX_ATTEMPTS - 1
             if not is_retriable or last_attempt:
@@ -171,21 +248,32 @@ async def _generate_structured(
 
             jitter = random.uniform(0, config.RETRY_JITTER)
             wait   = delay + jitter
-            _logger.warning(
-                "[HIGH USAGE] %s rate limit for %s — waiting %.1fs "
-                "(attempt %d/%d). %s: %s",
-                type(exc).__name__,
-                response_schema.__name__,
-                wait,
-                attempt + 1,
-                config.RETRY_MAX_ATTEMPTS,
-                type(exc).__name__,
-                exc_str[:120],
-            )
+            if isinstance(exc, asyncio.TimeoutError):
+                _logger.warning(
+                    "[TIMEOUT] %s failed to respond within %.0fs — retrying "
+                    "(attempt %d/%d), backing off %.1fs.",
+                    call_label,
+                    config.LLM_TIMEOUT_SECONDS,
+                    attempt + 1,
+                    config.RETRY_MAX_ATTEMPTS,
+                    wait,
+                )
+            else:
+                _logger.warning(
+                    "[HIGH USAGE] %s rate limit for %s — waiting %.1fs "
+                    "(attempt %d/%d). %s: %s",
+                    type(exc).__name__,
+                    call_label,
+                    wait,
+                    attempt + 1,
+                    config.RETRY_MAX_ATTEMPTS,
+                    type(exc).__name__,
+                    exc_str[:120],
+                )
             await asyncio.sleep(wait)
             _logger.info(
                 "[RESUMING] Retrying %s after %.1fs wait (attempt %d/%d)...",
-                response_schema.__name__,
+                call_label,
                 wait,
                 attempt + 2,
                 config.RETRY_MAX_ATTEMPTS,
@@ -220,17 +308,22 @@ async def _generate_text(
 
     delay = config.RETRY_BASE_DELAY
     for attempt in range(config.RETRY_MAX_ATTEMPTS):
+        t0 = time.perf_counter()
         try:
             async with _llm_semaphore:
-                response = await client.aio.models.generate_content(
-                    model=MODEL,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=temperature,
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        max_output_tokens=config.MAX_OUTPUT_TOKENS,
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=MODEL,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=temperature,
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            max_output_tokens=config.MAX_OUTPUT_TOKENS,
+                        ),
                     ),
+                    timeout=config.LLM_TIMEOUT_SECONDS,
                 )
+            latency = time.perf_counter() - t0
 
             if not response.text:
                 raise RuntimeError(
@@ -238,7 +331,22 @@ async def _generate_text(
                     f"finish_reason="
                     f"{getattr(getattr(response, 'candidates', [None])[0], 'finish_reason', 'unknown')}"
                 )
-            return response.text.strip()
+
+            text = response.text.strip()
+
+            # ── Telemetry record ──────────────────────────────────────────────
+            usage = getattr(response, "usage_metadata", None)
+            _emit_telemetry(
+                call_label=label,
+                prompt_chars=len(prompt),
+                response_chars=len(text),
+                latency_s=latency,
+                attempt=attempt + 1,
+                temperature=temperature,
+                prompt_tokens=getattr(usage, "prompt_token_count", None),
+                completion_tokens=getattr(usage, "candidates_token_count", None),
+            )
+            return text
 
         except Exception as exc:
             exc_str = str(exc)
@@ -249,6 +357,7 @@ async def _generate_text(
                 or "overloaded" in exc_str.lower()
                 or "503" in exc_str
                 or "ServiceUnavailable" in type(exc).__name__
+                or isinstance(exc, asyncio.TimeoutError)
             )
             last_attempt = attempt == config.RETRY_MAX_ATTEMPTS - 1
             if not is_retriable or last_attempt:
@@ -256,13 +365,24 @@ async def _generate_text(
 
             jitter = random.uniform(0, config.RETRY_JITTER)
             wait   = delay + jitter
-            _logger.warning(
-                "[HIGH USAGE] %s rate limit for %s — waiting %.1fs "
-                "(attempt %d/%d). %s: %s",
-                type(exc).__name__, label, wait,
-                attempt + 1, config.RETRY_MAX_ATTEMPTS,
-                type(exc).__name__, exc_str[:120],
-            )
+            if isinstance(exc, asyncio.TimeoutError):
+                _logger.warning(
+                    "[TIMEOUT] %s failed to respond within %.0fs — retrying "
+                    "(attempt %d/%d), backing off %.1fs.",
+                    label,
+                    config.LLM_TIMEOUT_SECONDS,
+                    attempt + 1,
+                    config.RETRY_MAX_ATTEMPTS,
+                    wait,
+                )
+            else:
+                _logger.warning(
+                    "[HIGH USAGE] %s rate limit for %s — waiting %.1fs "
+                    "(attempt %d/%d). %s: %s",
+                    type(exc).__name__, label, wait,
+                    attempt + 1, config.RETRY_MAX_ATTEMPTS,
+                    type(exc).__name__, exc_str[:120],
+                )
             await asyncio.sleep(wait)
             _logger.info(
                 "[RESUMING] Retrying %s after %.1fs wait (attempt %d/%d)...",
@@ -566,32 +686,32 @@ async def generate_appendix_and_database(
     )
 
 
-async def generate_quant_analysis_batch(
+async def generate_single_quant_analysis(
     client: genai.Client,
-    trade_jsons: list[str],
+    trade_json: str,
     financial_data: str,
     historical_context: str,
     correlation_matrix: str = "No correlation data available.",
 ) -> object:
     """
-    Generate QuantAnalysis for 1-3 trades in a single Gemini call.
-    Returns a QuantAnalysisBatch whose .analyses list mirrors the input order.
-    """
-    from models import QuantAnalysisBatch
-    from prompts import QUANT_ANALYSIS_BATCH_PROMPT
-    from datetime import date
+    Generate a QuantAnalysis for a single trade.
 
-    trades_array = "[" + ",\n".join(trade_jsons) + "]"
-    prompt = QUANT_ANALYSIS_BATCH_PROMPT.format(
-        today=date.today().isoformat(),
-        n_trades=len(trade_jsons),
-        trades_json=trades_array,
+    Called concurrently once per trade in Phase C (map-reduce fan-out).
+    Returns a single QuantAnalysis instance — never a batch wrapper —
+    so each call stays well within output token limits.
+    """
+    from models import QuantAnalysis
+
+    prompt = build_prompt(
+        SINGLE_QUANT_ANALYSIS_PROMPT,
+        raw_intelligence="",
+        trade_json=trade_json,
         financial_data=financial_data,
         historical_context=historical_context,
         correlation_matrix=correlation_matrix,
     )
     return await _generate_structured(
-        client, prompt, QuantAnalysisBatch, temperature=config.TEMP_STRATEGIC
+        client, prompt, QuantAnalysis, temperature=config.TEMP_STRATEGIC
     )
 
 
@@ -686,28 +806,27 @@ async def generate_trade_logic_review(
     )
 
 
-async def generate_tactical_quant_batch(
+async def generate_single_tactical_quant(
     client: genai.Client,
-    trade_jsons: list[str],
+    trade_json: str,
     financial_data: str,
 ) -> object:
     """
-    Generate TacticalQuant for 1-3 tactical trades in a single Gemini call.
-    Returns a TacticalQuantSet whose .quants list mirrors the input order.
-    """
-    from models import TacticalQuantSet
-    from prompts import TACTICAL_QUANT_BATCH_PROMPT
-    from datetime import date
+    Generate a TacticalQuant for a single tactical trade.
 
-    trades_array = "[" + ",\n".join(trade_jsons) + "]"
-    prompt = TACTICAL_QUANT_BATCH_PROMPT.format(
-        today=date.today().isoformat(),
-        n_trades=len(trade_jsons),
-        trades_json=trades_array,
+    Called concurrently once per trade in Phase C (map-reduce fan-out).
+    Returns a single TacticalQuant instance.
+    """
+    from models import TacticalQuant
+
+    prompt = build_prompt(
+        SINGLE_TACTICAL_QUANT_PROMPT,
+        raw_intelligence="",
+        trade_json=trade_json,
         financial_data=financial_data,
     )
     return await _generate_structured(
-        client, prompt, TacticalQuantSet, temperature=config.TEMP_TACTICAL
+        client, prompt, TacticalQuant, temperature=config.TEMP_TACTICAL
     )
 
 
@@ -716,18 +835,38 @@ async def generate_strategic_thesis(
     raw_intelligence: str,
     historical_context: str,
     priority_themes: PriorityThemes,
+    previous_critique: str | None = None,
 ) -> StrategicThesis:
     """
     Phase B split-call A: generate the macro thesis, historical precedents,
     conviction level, and time horizon — no instrument data.
     Runs concurrently with generate_strategic_instrument to halve token load.
+
+    If previous_critique is provided (self-correction loop), a preamble is
+    prepended to the prompt instructing the model to address the identified
+    logical failures before regenerating.
     """
-    prompt = build_prompt(
+    base_prompt = build_prompt(
         STRATEGIC_THESIS_PROMPT,
         raw_intelligence=raw_intelligence,
         historical_context=historical_context,
         priority_themes_json=priority_themes.model_dump_json(indent=2),
     )
+    if previous_critique:
+        critique_preamble = (
+            "SELF-CORRECTION REQUIRED\n\n"
+            "Your previous strategic trade was reviewed by the risk officer and rejected "
+            "for the following reasons:\n\n"
+            f"{previous_critique}\n\n"
+            "You must correct these logical fallacies and analytical gaps before proposing "
+            "a new trade.  Do NOT repeat the same instrument, thesis structure, or causal "
+            "chain that was rejected.  Propose a stronger, highly-defensible setup that "
+            "addresses each identified weakness point-by-point.\n\n"
+            "---\n\n"
+        )
+        prompt = critique_preamble + base_prompt
+    else:
+        prompt = base_prompt
     return await _generate_structured(
         client, prompt, StrategicThesis, temperature=config.TEMP_STRATEGIC
     )
@@ -738,18 +877,37 @@ async def generate_strategic_instrument(
     raw_intelligence: str,
     priority_themes: PriorityThemes,
     financial_data: str,
+    previous_critique: str | None = None,
 ) -> StrategicInstrument:
     """
     Phase B split-call B: select the optimal instrument for the strategic
     trade and populate the structured Trade fields.
     Runs concurrently with generate_strategic_thesis to halve token load.
+
+    If previous_critique is provided (self-correction loop), a preamble is
+    prepended instructing the model to avoid the rejected instrument and
+    address the identified weaknesses.
     """
-    prompt = build_prompt(
+    base_prompt = build_prompt(
         STRATEGIC_INSTRUMENT_PROMPT,
         raw_intelligence=raw_intelligence,
         financial_data=financial_data,
         priority_themes_json=priority_themes.model_dump_json(indent=2),
     )
+    if previous_critique:
+        critique_preamble = (
+            "SELF-CORRECTION REQUIRED\n\n"
+            "Your previous strategic instrument selection was reviewed by the risk officer "
+            "and rejected for the following reasons:\n\n"
+            f"{previous_critique}\n\n"
+            "You must select a different instrument and correct these analytical gaps.  "
+            "Do NOT select the same ticker that was rejected.  Choose an instrument that "
+            "addresses each weakness point-by-point and produces a more defensible setup.\n\n"
+            "---\n\n"
+        )
+        prompt = critique_preamble + base_prompt
+    else:
+        prompt = base_prompt
     return await _generate_structured(
         client, prompt, StrategicInstrument, temperature=config.TEMP_STRATEGIC
     )

@@ -185,8 +185,8 @@ STRATEGIC_TRADE_PROMPT = """\
 **Trade constraints (mandatory):**
 - Do NOT recommend foreign exchange (currency pairs) or commodity trades.
   Permitted asset classes: EQUITY, FIXED_INCOME, DERIVATIVE only.
-- Prefer individual company equities over sector or thematic ETFs. Use an ETF
-  only when no single liquid company equity adequately captures the thesis.
+- HARD RULE: ETFs and Index Funds are STRICTLY PROHIBITED for the strategic
+  trade.  You must select an individual company equity.
 - Each instrument must be unique across the entire briefing. Do not repeat any
   instrument that will be used in the strategic, positional, or tactical trades.
 
@@ -194,10 +194,14 @@ Generate exactly ONE strategic trade with a time horizon of 3-12 months.
 This trade must be grounded in the dominant geopolitical or macroeconomic
 theme from today's intelligence.
 
-**instrument:** Must be a specific, liquid, publicly traded instrument using
-EXCHANGE:TICKER format (e.g., "NYSE:KO").
+**instrument:** Must be a specific, liquid, individual company equity using
+EXCHANGE:TICKER format (e.g., "NYSE:KO").  ETFs are PROHIBITED.
 
 **last_price:** Populate from the live financial data provided above.
+
+**target_price:** Calculate and output a specific numeric price target based on
+valuation and the expected magnitude of the thesis catalyst.  Format as a
+dollar string (e.g., "$187.50").  MANDATORY — do not leave it null.
 
 **macro_thesis:** A long-form narrative (3-5 paragraphs) in flowing
 bureaucratic prose covering:
@@ -295,16 +299,22 @@ STRATEGIC_INSTRUMENT_PROMPT = """\
 **Trade constraints (mandatory):**
 - Do NOT recommend foreign exchange (currency pairs) or commodity trades.
   Permitted asset classes: EQUITY, FIXED_INCOME, DERIVATIVE only.
-- Prefer individual company equities over sector or thematic ETFs. Use an ETF
-  only when no single liquid company equity adequately captures the thesis.
+- HARD RULE: ETFs and Index Funds are STRICTLY PROHIBITED for the strategic
+  trade.  You must select an individual company equity.  Sector ETFs, thematic
+  ETFs, and broad-market ETFs are all forbidden regardless of thesis fit.
 - Time horizon: 3-12 months (strategic).
 
-Identify the single best publicly traded instrument to express the dominant
+Identify the single best individual company equity to express the dominant
 geopolitical or macroeconomic theme in today's intelligence.
 
 **instrument:** EXCHANGE:TICKER format (e.g., "NYSE:LMT"). US exchanges only.
 
 **last_price:** Populate from the live financial data provided above.
+
+**target_price:** Calculate and output a specific numeric price target based on
+the live financial data, valuation framework, and the expected magnitude of the
+thesis catalyst.  Format as a dollar string (e.g., "$187.50").  This field is
+MANDATORY — do not leave it null or omit it.
 
 **rationale:** 2-3 sentences of flowing bureaucratic prose: why this specific
 instrument is the optimal vehicle for the macro thesis, and why the pricing
@@ -675,6 +685,12 @@ today's intelligence.  Attribute precisely (full name, role or title, year if
 known).  The tone must be measured and analytical — not inspirational or
 dramatic.
 
+CRITICAL: Do NOT hallucinate quotes.  You must only use widely verifiable,
+famous historical quotes that you are certain of — the exact wording and the
+exact attribution.  If you cannot perfectly verify the quote and attribution,
+omit the epigraph entirely and output an empty string for both epigraph and
+epigraph_attribution.
+
 Output valid JSON conforming to the OpeningNarrative schema.
 """
 
@@ -713,6 +729,10 @@ From the upcoming earnings listed below, select the 3 most market-significant
 (prioritizing relevance to today's intelligence themes and estimated revenue
 scale).  For each entry:
 - Copy date_str, time_of_day, ticker, eps_estimate, revenue_estimate verbatim.
+- HARD RULE: The ticker field must use EXCHANGE:TICKER format
+  (e.g., "NASDAQ:AAPL", "NYSE:JPM").  Never output a bare ticker.
+- HARD RULE: If eps_estimate or revenue_estimate is provided in the data, you
+  MUST copy it exactly.  Never leave these fields null when data is available.
 - Fill in company (full legal name from your knowledge of the ticker).
 - Write watch_analysis: the 2-3 metrics the market will focus on, what guidance
   language is expected, and how a beat or miss in either direction affects the
@@ -847,16 +867,13 @@ Output valid JSON conforming to the TradeLogicReview schema.
 """
 
 
-QUANT_ANALYSIS_BATCH_PROMPT = """\
-## TASK: BATCH QUANTITATIVE TRADE ENRICHMENT
+SINGLE_QUANT_ANALYSIS_PROMPT = """\
+## TASK: QUANTITATIVE TRADE ANALYSIS
 
 **Briefing Date:** {today}
 
-You will be given {n_trades} trades.  Produce one QuantAnalysis for each, in
-the same order, inside the `analyses` list of a QuantAnalysisBatch object.
-
-### TRADES (JSON array — one object per trade, in order)
-{trades_json}
+### TRADE (JSON)
+{trade_json}
 
 ### LIVE FINANCIAL MARKET DATA
 {financial_data}
@@ -869,7 +886,9 @@ the same order, inside the `analyses` list of a QuantAnalysisBatch object.
 
 ---
 
-## INSTRUCTIONS (apply independently to every trade)
+## INSTRUCTIONS
+
+Produce one complete QuantAnalysis for the trade above.
 
 **valuation_summary:** Pull current valuation metrics from the live financial
 data.  Compare to sector peers and historical averages.  Name specific comps
@@ -911,28 +930,26 @@ instruments (tickers, options strikes/expiries), approximate sizing relative to
 the core position, the mechanism by which each hedge offsets the primary risk,
 and the conditions under which the hedge should be added, adjusted, or removed.
 
-Output valid JSON conforming to the QuantAnalysisBatch schema.  The `analyses`
-list must contain exactly {n_trades} entries in the same order as the trades.
+Output valid JSON conforming to the QuantAnalysis schema.
 """
 
 
-TACTICAL_QUANT_BATCH_PROMPT = """\
-## TASK: BATCH TACTICAL TRADE QUANTITATIVE SUMMARY
+SINGLE_TACTICAL_QUANT_PROMPT = """\
+## TASK: TACTICAL TRADE QUANTITATIVE SUMMARY
 
 **Briefing Date:** {today}
 
-You will be given {n_trades} tactical trades.  Produce one TacticalQuant for
-each, in the same order, inside the `quants` list of a TacticalQuantSet object.
-
-### TACTICAL TRADES (JSON array — one object per trade, in order)
-{trades_json}
+### TRADE (JSON)
+{trade_json}
 
 ### LIVE FINANCIAL MARKET DATA
 {financial_data}
 
 ---
 
-## INSTRUCTIONS (apply independently to every trade)
+## INSTRUCTIONS
+
+Produce one TacticalQuant for the trade above.
 
 **is_options_trade:** True if this trade should be expressed through options.
 For event-driven catalysts with defined binary outcomes, options are preferred.
@@ -950,8 +967,7 @@ to stop (e.g., "3.2:1").
 **catalyst_date:** If the thesis is event-driven, provide the ISO date of the
 catalyst.
 
-Output valid JSON conforming to the TacticalQuantSet schema.  The `quants`
-list must contain exactly {n_trades} entries in the same order as the trades.
+Output valid JSON conforming to the TacticalQuant schema.
 """
 
 
@@ -1086,6 +1102,7 @@ def build_prompt(
     trade_number: int = 1,
     today: Optional[str] = None,
     correlation_matrix: str = "No correlation data available.",
+    trade_json: str = "{}",
 ) -> str:
     """
     Inject all context variables into a prompt template.
@@ -1110,5 +1127,6 @@ def build_prompt(
         trade_and_quant_json=trade_and_quant_json,
         trade_number=str(trade_number),
         correlation_matrix=correlation_matrix,
+        trade_json=trade_json,
     )
     return template.format_map(values)

@@ -3,7 +3,7 @@ tools.py — Data augmentation and research tooling (Level 4).
 
 Functions:
   verify_financial_data          — Fetch live prices, P/E ratios, earnings dates
-                                   via yfinance (concurrent, thread-pool).
+                                   via httpx async Yahoo Finance client.
   format_financial_data_for_prompt — Render FinancialData dict as prompt string.
   retrieve_historical_context    — Query 180-day SQLite memory for overlapping
                                    entities and situations.
@@ -20,47 +20,212 @@ Polymorphic Data Hydration:
 
 import asyncio
 import json
+import math
 import os
 import re
 import sqlite3
 import urllib.request
-from dataclasses import dataclass
+from pydantic import BaseModel
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, List
+
+import httpx
 
 from models import FinancialData
 
 DB_PATH = Path("intelligence_memory.db")
 
 
+# ── Async Yahoo Finance Session ───────────────────────────────────────────────
+
+class _YFSession:
+    """
+    Shared httpx.AsyncClient for all Yahoo Finance API calls.
+
+    Handles the crumb/cookie authentication that Yahoo Finance requires since
+    late 2023.  Authentication is lazy — the crumb is acquired on the first
+    API call and reused for the lifetime of the session.  A 401 response
+    automatically triggers a single crumb refresh before retrying.
+
+    The module-level `_yf_session` singleton is initialised on first use via
+    `_get_yf_session()` and closed at the end of the pipeline via
+    `close_yf_session()`.  Using a single shared client across all concurrent
+    financial-data calls maximises connection reuse and keeps the cookie jar
+    consistent.
+    """
+
+    _BASE1 = "https://query1.finance.yahoo.com"
+    _BASE2 = "https://query2.finance.yahoo.com"
+
+    def __init__(self) -> None:
+        self._client: httpx.AsyncClient | None = None
+        self._crumb:  str | None = None
+        self._lock = asyncio.Lock()
+
+    async def _ensure_auth(self) -> None:
+        """Acquire cookies + crumb if not already cached (idempotent, lock-protected)."""
+        async with self._lock:
+            if self._client is None:
+                self._client = httpx.AsyncClient(
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/124.0 Safari/537.36"
+                        ),
+                        "Accept": "application/json, text/plain, */*",
+                        "Accept-Language": "en-US,en;q=0.9",
+                    },
+                    follow_redirects=True,
+                    timeout=20.0,
+                )
+            if self._crumb is None:
+                # Step 1: seed the A3 cookie that Yahoo requires
+                await self._client.get("https://fc.yahoo.com")
+                # Step 2: exchange cookies for a crumb token
+                r = await self._client.get(f"{self._BASE1}/v1/test/getcrumb")
+                r.raise_for_status()
+                self._crumb = r.text.strip()
+
+    async def _refresh_crumb(self) -> None:
+        """Force a crumb refresh (called after a 401 response)."""
+        async with self._lock:
+            self._crumb = None
+        await self._ensure_auth()
+
+    async def get_quote_summary(self, ticker: str) -> dict:
+        """
+        Call Yahoo Finance quoteSummary with modules:
+          quoteType, summaryDetail, calendarEvents
+
+        Returns the merged module dict (all module keys at the top level),
+        or {} if the ticker is not found or the call fails.
+        """
+        await self._ensure_auth()
+        url = f"{self._BASE2}/v10/finance/quoteSummary/{ticker}"
+        params = {
+            "modules": "quoteType,summaryDetail,calendarEvents",
+            "crumb": self._crumb,
+        }
+        try:
+            r = await self._client.get(url, params=params)
+            if r.status_code == 401:
+                await self._refresh_crumb()
+                params["crumb"] = self._crumb
+                r = await self._client.get(url, params=params)
+            if r.status_code != 200:
+                return {}
+            data = r.json()
+            result_list = (data.get("quoteSummary") or {}).get("result") or []
+            if not result_list:
+                return {}
+            # Merge all module sub-dicts into a single flat dict
+            merged: dict = {}
+            for module_dict in result_list:
+                for module_data in module_dict.values():
+                    if isinstance(module_data, dict):
+                        merged.update(module_data)
+            return merged
+        except Exception:
+            return {}
+
+    async def get_chart(self, ticker: str, interval: str = "1d", range_: str = "1d") -> dict:
+        """
+        Call Yahoo Finance chart API and return the result meta + close prices.
+
+        Returns a dict with keys:
+          "price"   — latest close price (float | None)
+          "closes"  — list[float] of all valid close prices in the range
+        """
+        await self._ensure_auth()
+        url = f"{self._BASE1}/v8/finance/chart/{ticker}"
+        params = {"interval": interval, "range": range_, "crumb": self._crumb}
+        try:
+            r = await self._client.get(url, params=params)
+            if r.status_code == 401:
+                await self._refresh_crumb()
+                params["crumb"] = self._crumb
+                r = await self._client.get(url, params=params)
+            if r.status_code != 200:
+                return {"price": None, "closes": []}
+            data = r.json()
+            result = ((data.get("chart") or {}).get("result") or [None])[0]
+            if not result:
+                return {"price": None, "closes": []}
+            # Collect non-null close prices
+            raw_closes = (
+                (result.get("indicators") or {})
+                .get("quote", [{}])[0]
+                .get("close", [])
+            ) or []
+            closes = [float(c) for c in raw_closes if c is not None]
+            price = closes[-1] if closes else result.get("meta", {}).get("regularMarketPrice")
+            return {"price": float(price) if price is not None else None, "closes": closes}
+        except Exception:
+            return {"price": None, "closes": []}
+
+    async def aclose(self) -> None:
+        """Close the underlying httpx client and reset auth state."""
+        async with self._lock:
+            if self._client is not None:
+                await self._client.aclose()
+                self._client = None
+                self._crumb  = None
+
+
+# Module-level singleton — shared across all financial data functions.
+_yf_session: _YFSession | None = None
+
+
+async def _get_yf_session() -> _YFSession:
+    """Return (and lazily initialise) the module-level _YFSession singleton."""
+    global _yf_session
+    if _yf_session is None:
+        _yf_session = _YFSession()
+    return _yf_session
+
+
+async def close_yf_session() -> None:
+    """
+    Close and reset the module-level Yahoo Finance session.
+    Call once at the end of the pipeline to release the httpx client.
+    """
+    global _yf_session
+    if _yf_session is not None:
+        await _yf_session.aclose()
+        _yf_session = None
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _yf_raw(module_dict: dict, *keys):
+    """
+    Navigate a (possibly nested) Yahoo Finance module dict and extract a raw
+    numeric value from a {"raw": ..., "fmt": ...} leaf.
+
+    Example:
+        _yf_raw(info, "summaryDetail", "regularMarketPrice")
+    If `info` has been flattened (all modules merged at the top level) the first
+    key resolves immediately to the {"raw": ...} leaf.
+    """
+    obj = module_dict
+    for key in keys:
+        if not isinstance(obj, dict):
+            return None
+        obj = obj.get(key)
+    if isinstance(obj, dict):
+        return obj.get("raw")
+    return obj
+
+
 # ── Market Snapshot ───────────────────────────────────────────────────────────
 
-@dataclass
-class MarketTick:
+class MarketTick(BaseModel):
     label: str
     ticker: str
     price: float | None = None
     change_pct: float | None = None
-
-
-def _fetch_market_tick_sync(ticker: str, label: str) -> MarketTick:
-    """Fetch latest price and day-over-day change for a single instrument."""
-    try:
-        import yfinance as yf
-        hist = yf.Ticker(ticker).history(period="2d")
-        if len(hist) >= 2:
-            prev = float(hist["Close"].iloc[-2])
-            curr = float(hist["Close"].iloc[-1])
-            change_pct = (curr - prev) / prev * 100
-        elif len(hist) == 1:
-            curr = float(hist["Close"].iloc[-1])
-            change_pct = None
-        else:
-            return MarketTick(label=label, ticker=ticker)
-        return MarketTick(label=label, ticker=ticker, price=curr, change_pct=change_pct)
-    except Exception:
-        return MarketTick(label=label, ticker=ticker)
 
 
 _SNAPSHOT_INSTRUMENTS = [
@@ -71,24 +236,36 @@ _SNAPSHOT_INSTRUMENTS = [
 ]
 
 
+async def _fetch_market_tick_async(ticker: str, label: str, session: _YFSession) -> MarketTick:
+    """Fetch latest price and day-over-day % change for a single instrument."""
+    chart = await session.get_chart(ticker, interval="1d", range_="5d")
+    closes = chart["closes"]
+    if len(closes) >= 2:
+        prev, curr = closes[-2], closes[-1]
+        return MarketTick(label=label, ticker=ticker, price=curr,
+                          change_pct=(curr - prev) / prev * 100)
+    if len(closes) == 1:
+        return MarketTick(label=label, ticker=ticker, price=closes[-1])
+    return MarketTick(label=label, ticker=ticker)
+
+
 async def fetch_market_snapshot() -> list[MarketTick]:
     """
     Fetch a real-time market snapshot: WTI Crude, 10Y Yield, DXY Index, S&P 500.
-    Each fetch runs in a thread-pool executor. Failures return a tick with None price.
+
+    All four instruments are fetched concurrently via a single shared
+    httpx.AsyncClient — no thread-pool executor required.
     """
-    loop = asyncio.get_running_loop()
-    tasks = [
-        loop.run_in_executor(None, _fetch_market_tick_sync, ticker, label)
-        for ticker, label in _SNAPSHOT_INSTRUMENTS
+    session = await _get_yf_session()
+    results = await asyncio.gather(
+        *[_fetch_market_tick_async(t, lbl, session) for t, lbl in _SNAPSHOT_INSTRUMENTS],
+        return_exceptions=True,
+    )
+    return [
+        result if not isinstance(result, Exception)
+        else MarketTick(label=lbl, ticker=t)
+        for (t, lbl), result in zip(_SNAPSHOT_INSTRUMENTS, results)
     ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    ticks = []
-    for (ticker, label), result in zip(_SNAPSHOT_INSTRUMENTS, results):
-        if isinstance(result, Exception):
-            ticks.append(MarketTick(label=label, ticker=ticker))
-        else:
-            ticks.append(result)
-    return ticks
 
 
 # ── Ticker Normalization ──────────────────────────────────────────────────────
@@ -180,7 +357,7 @@ _FUTURES_QUOTE_TYPES  = {"future", "futures"}
 _FX_QUOTE_TYPES       = {"currency", "forex"}
 
 
-def _classify_instrument(ticker: str, info: dict) -> str:
+def _classify_instrument(ticker: str, quote_type: str) -> str:
     """
     Classify a ticker into one of four instrument classes used to gate
     which fundamental fields are fetched and returned.
@@ -190,139 +367,119 @@ def _classify_instrument(ticker: str, info: dict) -> str:
                      volume, 52-week range.
       "etf"        — liquidity data only: market cap (as AUM), volume,
                      52-week range.  No P/E, no earnings date.
-      "index"      — price only (close_price from t.history).
-                     Indices have no tradeable fundamentals.
-      "price_only" — futures (=F), FX pairs (=X), and any instrument
-                     whose quoteType is not recognised.  Price only.
+      "index"      — price only.  Indices have no tradeable fundamentals.
+      "price_only" — futures (=F), FX pairs (=X), and any unrecognised type.
+                     Price only.
 
-    Classification order:
-      1. yfinance quoteType field (authoritative when info is populated).
-      2. Ticker pattern fallback (for instruments where t.info returned
-         a stub with < 5 keys and info is therefore {}).
+    Classification uses the quoteType string from Yahoo Finance quoteSummary
+    (authoritative when quoteSummary succeeded), falling back to ticker-pattern
+    rules when quoteSummary returned an empty result.
     """
-    qt = (info.get("quoteType") or "").lower()
+    qt = quote_type.lower()
 
-    if qt in _EQUITY_QUOTE_TYPES:
-        return "equity"
-    if qt in _ETF_QUOTE_TYPES:
-        return "etf"
-    if qt in _INDEX_QUOTE_TYPES:
-        return "index"
+    if qt in _EQUITY_QUOTE_TYPES:   return "equity"
+    if qt in _ETF_QUOTE_TYPES:      return "etf"
+    if qt in _INDEX_QUOTE_TYPES:    return "index"
     if qt in _FUTURES_QUOTE_TYPES or qt in _FX_QUOTE_TYPES:
         return "price_only"
 
-    # Pattern fallback — info was empty/stub
-    if ticker.startswith("^"):
-        return "index"
-    if ticker.endswith("=F"):
-        return "price_only"  # futures
-    if ticker.endswith("=X"):
-        return "price_only"  # FX pair
-
-    # Default: treat as equity — will fail gracefully if fundamentals are absent
+    # Pattern fallback when quoteSummary returned no quoteType
+    if ticker.startswith("^"):  return "index"
+    if ticker.endswith("=F"):   return "price_only"
+    if ticker.endswith("=X"):   return "price_only"
     return "equity"
 
 
 # ── Financial Data Verification ───────────────────────────────────────────────
 
-def _fetch_single_ticker(ticker: str) -> FinancialData:
+async def _fetch_single_ticker_async(ticker: str, session: _YFSession) -> FinancialData:
     """
-    Synchronous yfinance call for one ticker — Polymorphic Data Hydration.
+    Async replacement for the former synchronous yfinance _fetch_single_ticker.
 
-    The fetch strategy depends on instrument class (see _classify_instrument):
+    Tier 1 — Yahoo Finance quoteSummary (quoteType + summaryDetail + calendarEvents):
+      All tickers are attempted.  For indices, futures, and FX pairs the
+      quoteSummary often returns a minimal result or an empty dict; Tier 2
+      handles price retrieval for those classes.
 
-      equity     — Tier 1 (t.info) for full fundamentals; Tier 2 (t.history)
-                   price fallback; calendar API for next earnings date.
-      etf        — Tier 1 for price + liquidity + 52-week range; Tier 2 price
-                   fallback.  pe_ratio and next_earnings_date are always None.
-      index      — Tier 2 only (t.history).  Indices return HTTP 404 or empty
-                   stubs from quoteSummary; all fundamentals are None.
-      price_only — Tier 2 only (t.history).  Covers futures (=F) and FX (=X).
-                   All fundamentals are None by definition.
+    Tier 2 — Yahoo Finance chart API (1-day range):
+      Used as a price fallback when Tier 1 returned no close price, and as the
+      primary data source for index/price_only instruments.
 
-    Classification is performed after Tier 1 using the quoteType field in the
-    info dict, with a ticker-pattern fallback for stub responses.  This means
-    equities and ETFs still attempt Tier 1 first to read the quoteType; the
-    branch then gates which fields are extracted from the already-fetched dict.
+    The same Polymorphic Data Hydration logic as before:
+      equity     — full fundamentals
+      etf        — price + liquidity + 52-wk range, no P/E or earnings
+      index      — price only
+      price_only — price only (futures, FX)
 
-    Returns a FinancialData with all-None fields on total failure; never raises.
+    Never raises; returns FinancialData(ticker=ticker) with all-None fields on
+    total failure.
     """
     try:
-        import yfinance as yf
-        t = yf.Ticker(ticker)
+        # ── Tier 1: quoteSummary ───────────────────────────────────────────────
+        info = await session.get_quote_summary(ticker)
 
-        # ── Tier 1: t.info ─────────────────────────────────────────────────────
-        # Attempted for all tickers so quoteType is available for classification.
-        # For indices/futures/FX this will 404 or return a stub — that's expected
-        # and the except silently falls through to Tier 2.
-        info: dict = {}
-        try:
-            fetched = t.info
-            # yfinance returns single-key stubs ({"trailingPegRatio": None}) for
-            # instruments that don't support quoteSummary.  Treat < 5 keys as empty.
-            if isinstance(fetched, dict) and len(fetched) >= 5:
-                info = fetched
-        except Exception:
-            pass  # HTTP 404, quoteSummary error, network timeout → Tier 2
+        quote_type_str: str = ""
+        if isinstance(info.get("quoteType"), str):
+            # When the quoteType module key itself is a string (rare)
+            quote_type_str = info["quoteType"]
+        elif isinstance(info.get("quoteType"), dict):
+            quote_type_str = info["quoteType"].get("quoteType", "")
+        else:
+            # Flattened merge: quoteType is a plain string at top level
+            # OR it's nested {"quoteType": "EQUITY"} — both handled above.
+            # If absent, try the raw field directly.
+            quote_type_str = info.get("quoteType") or ""
 
-        # Classify instrument using quoteType (authoritative) or ticker pattern
-        iclass = _classify_instrument(ticker, info)
+        iclass = _classify_instrument(ticker, str(quote_type_str))
 
-        # ── Close price ────────────────────────────────────────────────────────
-        close_price: float | None = (
-            info.get("currentPrice") or info.get("regularMarketPrice")
-        )
-
-        # ── Tier 2: t.history price fallback ──────────────────────────────────
-        # Used when Tier 1 returned no price (index, futures, FX, or equity stub).
+        # Extract price from summaryDetail (prefers currentPrice, falls back to
+        # regularMarketPrice).  Both may be {"raw": float} dicts.
+        close_price: float | None = _yf_raw(info, "currentPrice")
         if close_price is None:
-            try:
-                hist = t.history(period="1d")
-                if not hist.empty:
-                    close_price = float(hist["Close"].iloc[-1])
-            except Exception:
-                pass
+            close_price = _yf_raw(info, "regularMarketPrice")
+
+        # ── Tier 2: chart API price fallback ──────────────────────────────────
+        if close_price is None:
+            chart = await session.get_chart(ticker, interval="1d", range_="1d")
+            close_price = chart["price"]
 
         # ── Next earnings date (equity only) ──────────────────────────────────
-        # The calendar API is meaningless and will error for ETFs, indices, and
-        # futures — skip it entirely for non-equity instrument classes.
         next_earnings: str | None = None
         if iclass == "equity" and info:
             try:
-                cal = t.calendar
-                if cal is not None and not cal.empty and "Earnings Date" in cal.index:
-                    raw   = cal.loc["Earnings Date"]
-                    dates = list(raw) if hasattr(raw, "__iter__") else [raw]
-                    if dates:
-                        next_earnings = str(dates[0])
+                cal_events = info.get("calendarEvents") or {}
+                if isinstance(cal_events, dict):
+                    earnings_dates = (
+                        (cal_events.get("earnings") or {}).get("earningsDate") or []
+                    )
+                    if earnings_dates:
+                        first = earnings_dates[0]
+                        # Yahoo returns {"raw": timestamp, "fmt": "YYYY-MM-DD"}
+                        if isinstance(first, dict):
+                            next_earnings = first.get("fmt") or str(first.get("raw", ""))
+                        else:
+                            next_earnings = str(first)
             except Exception:
                 pass
 
         # ── Assemble FinancialData — gate fields by instrument class ───────────
-        #
-        #  equity:     all fields populated where available
-        #  etf:        market_cap (AUM), volume, 52-week range; no P/E, no earnings
-        #  index:      price only
-        #  price_only: price only (futures, FX)
-        #
-        is_equity = iclass == "equity"
-        has_liquidity = iclass in ("equity", "etf")   # volume + 52wk range
-        has_market_cap = iclass in ("equity", "etf")  # marketCap / AUM
+        is_equity      = iclass == "equity"
+        has_liquidity  = iclass in ("equity", "etf")
+        has_market_cap = iclass in ("equity", "etf")
 
         return FinancialData(
             ticker=ticker,
             close_price=close_price,
-            pe_ratio=info.get("trailingPE")  if is_equity      else None,
-            forward_pe=info.get("forwardPE") if is_equity      else None,
-            next_earnings_date=next_earnings,                           # None unless equity
-            market_cap=info.get("marketCap") if has_market_cap else None,
-            fifty_two_week_high=info.get("fiftyTwoWeekHigh")   if has_liquidity else None,
-            fifty_two_week_low=info.get("fiftyTwoWeekLow")     if has_liquidity else None,
-            avg_daily_volume=(
-                info.get("averageVolume")
-            ) if has_liquidity else None,
+            pe_ratio=_yf_raw(info, "trailingPE")      if is_equity      else None,
+            forward_pe=_yf_raw(info, "forwardPE")     if is_equity      else None,
+            next_earnings_date=next_earnings,
+            market_cap=_yf_raw(info, "marketCap")     if has_market_cap else None,
+            fifty_two_week_high=_yf_raw(info, "fiftyTwoWeekHigh")  if has_liquidity else None,
+            fifty_two_week_low=_yf_raw(info, "fiftyTwoWeekLow")    if has_liquidity else None,
+            avg_daily_volume=_yf_raw(info, "averageVolume")        if has_liquidity else None,
             avg_daily_volume_10d=(
-                info.get("averageVolume10days") or info.get("averageDailyVolume10Day")
+                _yf_raw(info, "averageVolume10days")
+                or _yf_raw(info, "averageDailyVolume10Day")
             ) if has_liquidity else None,
         )
 
@@ -334,11 +491,12 @@ async def verify_financial_data(tickers: List[str]) -> Dict[str, FinancialData]:
     """
     Fetch current financial data for a list of tickers.
 
-    Each yfinance call runs in a thread-pool executor so blocking I/O does not
-    stall the event loop.  All tickers are dispatched concurrently.
+    All tickers are dispatched concurrently via a single shared httpx.AsyncClient
+    — no thread-pool executor is involved.  Each call is independent and failures
+    are caught per-ticker so a single bad symbol never blocks the rest.
 
     Args:
-        tickers: List of ticker symbols (e.g., ["XLE", "TLT", "DXY"]).
+        tickers: List of ticker symbols (e.g., ["XLE", "TLT", "^GSPC"]).
 
     Returns:
         Dict mapping each ticker to its FinancialData object.
@@ -346,18 +504,16 @@ async def verify_financial_data(tickers: List[str]) -> Dict[str, FinancialData]:
     if not tickers:
         return {}
 
-    loop  = asyncio.get_running_loop()
-    tasks = [loop.run_in_executor(None, _fetch_single_ticker, t) for t in tickers]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    session = await _get_yf_session()
+    results = await asyncio.gather(
+        *[_fetch_single_ticker_async(t, session) for t in tickers],
+        return_exceptions=True,
+    )
 
-    output: Dict[str, FinancialData] = {}
-    for ticker, result in zip(tickers, results):
-        if isinstance(result, Exception):
-            output[ticker] = FinancialData(ticker=ticker)
-        else:
-            output[ticker] = result  # type: ignore[assignment]
-
-    return output
+    return {
+        ticker: result if not isinstance(result, Exception) else FinancialData(ticker=ticker)
+        for ticker, result in zip(tickers, results)
+    }
 
 
 def format_financial_data_for_prompt(data: Dict[str, FinancialData]) -> str:
@@ -518,10 +674,9 @@ def retrieve_historical_context(
     return "\n".join(lines)
 
 
-# ── Economic Calendar (Finnhub) ────────────────────────────────────────────────
+# ── Economic Calendar (FMP) ────────────────────────────────────────────────────
 
-@dataclass
-class EconomicEvent:
+class EconomicEvent(BaseModel):
     date_str: str           # "2026-04-01"
     time_et:  str | None    # "08:30" or None
     event:    str           # "Non Farm Payroll"
@@ -532,7 +687,7 @@ class EconomicEvent:
 
 
 def _format_eco_value(value: float | None, unit: str | None) -> str | None:
-    """Format a Finnhub numeric reading + unit into a human-readable string."""
+    """Format a numeric reading + unit into a human-readable string."""
     if value is None:
         return None
     unit = unit or ""
@@ -548,16 +703,16 @@ def _format_eco_value(value: float | None, unit: str | None) -> str | None:
 
 
 def _fetch_economic_calendar_sync(days_ahead: int, min_impact: str) -> list[EconomicEvent]:
-    """Synchronous Finnhub economic calendar fetch (run in a thread executor)."""
-    api_key = os.environ.get("FINNHUB_API_KEY", "")
+    """Synchronous FMP economic calendar fetch (run in a thread executor)."""
+    api_key = os.environ.get("FMP_API_KEY", "")
     if not api_key:
         return []
 
     from_date = date.today()
     to_date   = from_date + timedelta(days=days_ahead)
     url = (
-        f"https://finnhub.io/api/v1/calendar/economic"
-        f"?from={from_date.isoformat()}&to={to_date.isoformat()}&token={api_key}"
+        f"https://financialmodelingprep.com/api/v3/economic_calendar"
+        f"?from={from_date.isoformat()}&to={to_date.isoformat()}&apikey={api_key}"
     )
 
     try:
@@ -570,27 +725,38 @@ def _fetch_economic_calendar_sync(days_ahead: int, min_impact: str) -> list[Econ
     min_rank    = impact_rank.get(min_impact.lower(), 3)
 
     events: list[EconomicEvent] = []
-    for item in data.get("economicCalendar", []):
+    # FMP returns a flat list of objects (not wrapped in a key)
+    for item in (data if isinstance(data, list) else []):
+        # Hard filter: US events only
+        if (item.get("country") or "").upper() != "US":
+            continue
+
         item_impact = (item.get("impact") or "").lower()
         if impact_rank.get(item_impact, 0) < min_rank:
             continue
 
-        # Parse date and time from "YYYY-MM-DD HH:MM:SS" or bare "YYYY-MM-DD"
-        raw_time = item.get("time") or item.get("date") or ""
-        parts    = raw_time.split(" ")
+        # FMP `date` field: "2026-04-01 08:30:00" or bare "2026-04-01"
+        raw_date = item.get("date") or ""
+        parts    = raw_date.split(" ")
         date_str = parts[0] if parts else ""
         time_et  = parts[1][:5] if len(parts) > 1 else None  # "08:30"
 
         if not date_str:
             continue
 
+        # FMP uses "estimate" for forecast and "actual" for the realized reading.
+        # Default to "N/A" (not None) so the prompt always shows a value.
+        previous_raw = item.get("previous")
+        estimate_raw = item.get("estimate") or item.get("consensus") or item.get("forecast")
+        actual_raw   = item.get("actual")
+
         events.append(EconomicEvent(
             date_str = date_str,
             time_et  = time_et,
             event    = item.get("event", ""),
-            country  = (item.get("country") or "US").upper(),
-            previous = _format_eco_value(item.get("prev"),     item.get("unit")),
-            forecast = _format_eco_value(item.get("estimate"), item.get("unit")),
+            country  = "US",
+            previous = str(previous_raw) if previous_raw is not None else "N/A",
+            forecast = str(estimate_raw) if estimate_raw is not None else "N/A",
             impact   = item_impact,
         ))
 
@@ -603,9 +769,9 @@ async def fetch_economic_calendar(
     min_impact: str = "high",
 ) -> list[EconomicEvent]:
     """
-    Fetch scheduled economic releases from Finnhub for the next `days_ahead` days.
+    Fetch scheduled economic releases from FMP for the next `days_ahead` days.
 
-    Requires FINNHUB_API_KEY in the environment.  Returns an empty list (silently)
+    Requires FMP_API_KEY in the environment.  Returns an empty list (silently)
     when the key is absent or the API call fails.
     """
     loop = asyncio.get_running_loop()
@@ -629,13 +795,13 @@ def format_economic_calendar_for_prompt(events: list[EconomicEvent]) -> str:
     """
     if not events:
         return (
-            "No economic calendar data available — FINNHUB_API_KEY not set "
+            "No economic calendar data available — FMP_API_KEY not set "
             "or no high-impact events found for the coming week."
         )
 
     lines = [
         "### SCHEDULED ECONOMIC RELEASES — Live Data (Next 7 Days)",
-        "The following data is sourced verbatim from the Finnhub economic calendar.",
+        "The following data is sourced verbatim from the FMP economic calendar.",
         "When generating calendar_events, copy date_str, time_et, event, previous,",
         "and forecast exactly as shown below.  Generate entity and market_relevance.\n",
     ]
@@ -660,10 +826,9 @@ def format_economic_calendar_for_prompt(events: list[EconomicEvent]) -> str:
     return "\n".join(lines)
 
 
-# ── Earnings Calendar (Finnhub) ────────────────────────────────────────────────
+# ── Earnings Calendar (FMP) ────────────────────────────────────────────────────
 
-@dataclass
-class EarningsEntry:
+class EarningsEntry(BaseModel):
     date_str:          str
     hour:              str | None    # "bmo", "amc", "dmh"
     ticker:            str
@@ -726,18 +891,18 @@ def _fetch_earnings_calendar_sync(
     days_ahead: int,
 ) -> tuple[list[EarningsEntry], list[EarningsEntry]]:
     """
-    Fetch earnings from Finnhub for the window [today-days_behind, today+days_ahead].
+    Fetch earnings from FMP for the window [today-days_behind, today+days_ahead].
     Returns (upcoming_top5, recent_top5) sorted by estimated revenue (largest first).
     """
-    api_key = os.environ.get("FINNHUB_API_KEY", "")
+    api_key = os.environ.get("FMP_API_KEY", "")
     if not api_key:
         return [], []
 
     from_date = date.today() - timedelta(days=days_behind)
     to_date   = date.today() + timedelta(days=days_ahead)
     url = (
-        f"https://finnhub.io/api/v1/calendar/earnings"
-        f"?from={from_date.isoformat()}&to={to_date.isoformat()}&token={api_key}"
+        f"https://financialmodelingprep.com/api/v3/earning_calendar"
+        f"?from={from_date.isoformat()}&to={to_date.isoformat()}&apikey={api_key}"
     )
 
     try:
@@ -749,7 +914,8 @@ def _fetch_earnings_calendar_sync(
     upcoming: list[EarningsEntry] = []
     recent:   list[EarningsEntry] = []
 
-    for item in data.get("earningsCalendar", []):
+    # FMP returns a flat list of objects
+    for item in (data if isinstance(data, list) else []):
         ticker = (item.get("symbol") or "").strip()
         d_str  = (item.get("date") or "").strip()
         if not ticker or not d_str:
@@ -757,14 +923,14 @@ def _fetch_earnings_calendar_sync(
 
         entry = EarningsEntry(
             date_str         = d_str,
-            hour             = item.get("hour"),
+            hour             = item.get("time"),           # FMP uses "time": "bmo"/"amc"
             ticker           = ticker,
-            eps_estimate     = item.get("epsEstimate"),
-            eps_actual       = item.get("epsActual"),
-            revenue_estimate = item.get("revenueEstimate"),
-            revenue_actual   = item.get("revenueActual"),
+            eps_estimate     = item.get("epsEstimated"),   # FMP field name
+            eps_actual       = item.get("eps"),            # FMP field name
+            revenue_estimate = item.get("revenueEstimated"),
+            revenue_actual   = item.get("revenue"),
             quarter          = item.get("quarter"),
-            year             = item.get("year"),
+            year             = int(d_str[:4]) if d_str else None,
         )
 
         # Classify by whether actuals are present (already reported)
@@ -780,7 +946,7 @@ def _fetch_earnings_calendar_sync(
     upcoming_top5 = sorted(upcoming, key=_rev_key, reverse=True)[:5]
     recent_top5   = sorted(recent,   key=_rev_key, reverse=True)[:5]
 
-    upcoming_top5.sort(key=lambda e: e.date_str)           # chronological
+    upcoming_top5.sort(key=lambda e: e.date_str)              # chronological
     recent_top5.sort(key=lambda e: e.date_str, reverse=True)  # most recent first
 
     return upcoming_top5, recent_top5
@@ -791,7 +957,7 @@ async def fetch_earnings_calendar(
     days_ahead:  int = 7,
 ) -> tuple[list[EarningsEntry], list[EarningsEntry]]:
     """
-    Async wrapper around the Finnhub earnings calendar fetch.
+    Async wrapper around the FMP earnings calendar fetch.
     Returns (upcoming_top5, recent_top5).
     """
     loop = asyncio.get_running_loop()
@@ -807,7 +973,7 @@ def format_earnings_for_prompt(
     """Render upcoming and recent earnings as a structured text block for prompt injection."""
     if not upcoming and not recent:
         return (
-            "No earnings calendar data available — FINNHUB_API_KEY not set "
+            "No earnings calendar data available — FMP_API_KEY not set "
             "or no earnings found in the fetch window."
         )
 
@@ -885,7 +1051,7 @@ def format_earnings_for_prompt(
 
 # ── Cross-Asset Correlation Matrix ────────────────────────────────────────────
 
-def calculate_price_correlations(
+async def calculate_price_correlations(
     tickers: list[str],
     financial_data_map: Dict[str, "FinancialData"],
 ) -> str:
@@ -893,33 +1059,45 @@ def calculate_price_correlations(
     Compute a 30-day daily-return correlation matrix for the given tickers
     and return it as a formatted string for prompt injection.
 
-    Uses yfinance t.history(period="1mo") for each ticker.  Tickers that fail
-    to download (e.g. invalid symbols) are silently skipped.  If fewer than
-    two tickers yield usable data the function returns a fallback message.
+    Uses _YFSession.get_chart() (range="1mo", interval="1d") for each ticker.
+    Tickers that fail to download are silently skipped.  If fewer than two
+    tickers yield usable data the function returns a fallback message.
 
     The matrix is formatted as a compact upper-triangular text table so the
     LLM can reference pairwise correlations without needing to parse JSON.
     """
-    import math
-    import yfinance as yf
+    session = await _get_yf_session()
+
+    async def _fetch_closes(raw_ticker: str) -> tuple[str, list[float]] | None:
+        yf_sym = raw_ticker.split(":")[-1] if ":" in raw_ticker else raw_ticker
+        try:
+            data = await session.get_chart(yf_sym, interval="1d", range_="1mo")
+            closes_raw = (
+                data.get("chart", {})
+                    .get("result", [{}])[0]
+                    .get("indicators", {})
+                    .get("quote", [{}])[0]
+                    .get("close", [])
+            )
+            closes = [c for c in closes_raw if c is not None]
+            if len(closes) < 5:
+                return None
+            return raw_ticker, closes
+        except Exception:
+            return None
+
+    fetch_results = await asyncio.gather(
+        *[_fetch_closes(t) for t in tickers],
+        return_exceptions=True,
+    )
 
     price_series: dict[str, list[float]] = {}
     valid_tickers: list[str] = []
-
-    for raw_ticker in tickers:
-        # Strip EXCHANGE: prefix for yfinance
-        yfticker = raw_ticker.split(":")[-1] if ":" in raw_ticker else raw_ticker
-        try:
-            hist = yf.Ticker(yfticker).history(period="1mo")
-            if hist.empty or "Close" not in hist.columns or len(hist) < 5:
-                continue
-            closes = hist["Close"].dropna().tolist()
-            if len(closes) < 5:
-                continue
+    for res in fetch_results:
+        if isinstance(res, tuple) and res is not None:
+            raw_ticker, closes = res
             price_series[raw_ticker] = closes
             valid_tickers.append(raw_ticker)
-        except Exception:
-            continue
 
     if len(valid_tickers) < 2:
         return "Insufficient data for correlation matrix (fewer than 2 tickers with 30-day history)."
