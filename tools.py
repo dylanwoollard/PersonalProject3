@@ -24,8 +24,12 @@ import math
 import os
 import re
 import sqlite3
-import urllib.request
 from pydantic import BaseModel
+
+try:
+    import fmpsdk as _fmpsdk
+except ImportError:
+    _fmpsdk = None
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, List
@@ -703,21 +707,21 @@ def _format_eco_value(value: float | None, unit: str | None) -> str | None:
 
 
 def _fetch_economic_calendar_sync(days_ahead: int, min_impact: str) -> list[EconomicEvent]:
-    """Synchronous FMP economic calendar fetch (run in a thread executor)."""
+    """Synchronous FMP economic calendar fetch via fmpsdk (run in a thread executor)."""
     api_key = os.environ.get("FMP_API_KEY", "")
-    if not api_key:
+    if not api_key or _fmpsdk is None:
         return []
 
     from_date = date.today()
     to_date   = from_date + timedelta(days=days_ahead)
-    url = (
-        f"https://financialmodelingprep.com/api/v3/economic_calendar"
-        f"?from={from_date.isoformat()}&to={to_date.isoformat()}&apikey={api_key}"
-    )
 
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:  # noqa: S310
-            data = json.loads(resp.read().decode())
+        raw = _fmpsdk.economic_calendar(
+            apikey    = api_key,
+            from_date = from_date.isoformat(),
+            to_date   = to_date.isoformat(),
+        )
+        data: list = raw if isinstance(raw, list) else []
     except Exception:
         return []
 
@@ -725,9 +729,8 @@ def _fetch_economic_calendar_sync(days_ahead: int, min_impact: str) -> list[Econ
     min_rank    = impact_rank.get(min_impact.lower(), 3)
 
     events: list[EconomicEvent] = []
-    # FMP returns a flat list of objects (not wrapped in a key)
-    for item in (data if isinstance(data, list) else []):
-        # Hard filter: US events only
+    for item in data:
+        # STRICT FILTER: US events only
         if (item.get("country") or "").upper() != "US":
             continue
 
@@ -744,11 +747,8 @@ def _fetch_economic_calendar_sync(days_ahead: int, min_impact: str) -> list[Econ
         if not date_str:
             continue
 
-        # FMP uses "estimate" for forecast and "actual" for the realized reading.
-        # Default to "N/A" (not None) so the prompt always shows a value.
         previous_raw = item.get("previous")
         estimate_raw = item.get("estimate") or item.get("consensus") or item.get("forecast")
-        actual_raw   = item.get("actual")
 
         events.append(EconomicEvent(
             date_str = date_str,
@@ -895,27 +895,28 @@ def _fetch_earnings_calendar_sync(
     Returns (upcoming_top5, recent_top5) sorted by estimated revenue (largest first).
     """
     api_key = os.environ.get("FMP_API_KEY", "")
-    if not api_key:
+    if not api_key or _fmpsdk is None:
         return [], []
 
     from_date = date.today() - timedelta(days=days_behind)
     to_date   = date.today() + timedelta(days=days_ahead)
-    url = (
-        f"https://financialmodelingprep.com/api/v3/earning_calendar"
-        f"?from={from_date.isoformat()}&to={to_date.isoformat()}&apikey={api_key}"
-    )
 
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:  # noqa: S310
-            data = json.loads(resp.read().decode())
+        raw = _fmpsdk.earning_calendar(
+            apikey    = api_key,
+            from_date = from_date.isoformat(),
+            to_date   = to_date.isoformat(),
+        )
+        data: list = raw if isinstance(raw, list) else []
     except Exception:
         return [], []
 
     upcoming: list[EarningsEntry] = []
     recent:   list[EarningsEntry] = []
 
-    # FMP returns a flat list of objects
-    for item in (data if isinstance(data, list) else []):
+    # FMP returns a flat list; no country field on earning_calendar —
+    # endpoint is already scoped to US-listed equities.
+    for item in data:
         ticker = (item.get("symbol") or "").strip()
         d_str  = (item.get("date") or "").strip()
         if not ticker or not d_str:
@@ -1051,35 +1052,40 @@ def format_earnings_for_prompt(
 
 # ── Cross-Asset Correlation Matrix ────────────────────────────────────────────
 
+_CLEAN_EQUITY_RE = re.compile(r"^[A-Z][A-Z0-9]{0,8}$")
+
+
 async def calculate_price_correlations(
     tickers: list[str],
     financial_data_map: Dict[str, "FinancialData"],
 ) -> str:
     """
     Compute a 30-day daily-return correlation matrix for the given tickers
-    and return it as a formatted string for prompt injection.
+    and return it as an HTML <table> string for embedding in the briefing.
 
-    Uses _YFSession.get_chart() (range="1mo", interval="1d") for each ticker.
-    Tickers that fail to download are silently skipped.  If fewer than two
-    tickers yield usable data the function returns a fallback message.
+    Only clean US equity tickers (uppercase letters/digits, no ^ $ = spaces)
+    are included.  Indices, futures, FX pairs, and options contract strings
+    are silently dropped before fetching.
 
-    The matrix is formatted as a compact upper-triangular text table so the
-    LLM can reference pairwise correlations without needing to parse JSON.
+    Returns a fallback message string if fewer than 2 valid equity tickers
+    can be resolved to 30-day price history.
     """
+    # ── Sanitize: keep only clean equity symbols ──────────────────────────────
+    def _is_clean_equity(raw: str) -> bool:
+        sym = raw.split(":")[-1] if ":" in raw else raw
+        return bool(_CLEAN_EQUITY_RE.match(sym))
+
+    equity_tickers = [t for t in tickers if _is_clean_equity(t)]
+    if len(equity_tickers) < 2:
+        return "Insufficient valid equity tickers to generate correlation matrix."
+
     session = await _get_yf_session()
 
     async def _fetch_closes(raw_ticker: str) -> tuple[str, list[float]] | None:
         yf_sym = raw_ticker.split(":")[-1] if ":" in raw_ticker else raw_ticker
         try:
             data = await session.get_chart(yf_sym, interval="1d", range_="1mo")
-            closes_raw = (
-                data.get("chart", {})
-                    .get("result", [{}])[0]
-                    .get("indicators", {})
-                    .get("quote", [{}])[0]
-                    .get("close", [])
-            )
-            closes = [c for c in closes_raw if c is not None]
+            closes = [c for c in data.get("closes", []) if c is not None]
             if len(closes) < 5:
                 return None
             return raw_ticker, closes
@@ -1087,7 +1093,7 @@ async def calculate_price_correlations(
             return None
 
     fetch_results = await asyncio.gather(
-        *[_fetch_closes(t) for t in tickers],
+        *[_fetch_closes(t) for t in equity_tickers],
         return_exceptions=True,
     )
 
@@ -1100,7 +1106,7 @@ async def calculate_price_correlations(
             valid_tickers.append(raw_ticker)
 
     if len(valid_tickers) < 2:
-        return "Insufficient data for correlation matrix (fewer than 2 tickers with 30-day history)."
+        return "Insufficient valid equity tickers to generate correlation matrix."
 
     def log_returns(prices: list[float]) -> list[float]:
         return [math.log(prices[i] / prices[i - 1]) for i in range(1, len(prices))]
@@ -1121,24 +1127,42 @@ async def calculate_price_correlations(
         return num / (den_a * den_b)
 
     n = len(valid_tickers)
-    labels = [t.split(":")[-1][:8] for t in valid_tickers]
-    output_lines: list[str] = [
-        f"30-day daily-return correlations ({min_len} trading days, {n} instruments):",
-        "",
-        "         " + "  ".join(f"{lbl:>8}" for lbl in labels[1:]),
-    ]
+    labels = [t.split(":")[-1][:10] for t in valid_tickers]
 
+    # ── Build HTML table (upper-triangular) ───────────────────────────────────
+    def _corr_color(v: float) -> str:
+        if v >= 0.7:   return "#9b2335"   # strong positive — high co-movement risk
+        if v >= 0.3:   return "#c05621"   # moderate positive
+        if v <= -0.3:  return "#276749"   # negative — diversification benefit
+        return "#4a5568"                  # near-zero
+
+    th_cells = "".join(f"<th>{lbl}</th>" for lbl in labels[1:])
+    header_row = f"<tr><th></th>{th_cells}</tr>"
+
+    body_rows: list[str] = []
     for i in range(n - 1):
-        row_label = f"{labels[i]:>8} "
-        cells: list[str] = []
+        row_cells = [f"<th>{labels[i]}</th>"]
+        for _ in range(i):
+            row_cells.append("<td></td>")
         for j in range(i + 1, n):
             corr = pearson(returns[valid_tickers[i]], returns[valid_tickers[j]])
-            cells.append(f"{corr:+.2f}    ")
-        output_lines.append(row_label + "".join(cells))
+            color = _corr_color(corr)
+            row_cells.append(
+                f"<td style='color:{color};font-weight:600;text-align:center;'>{corr:+.2f}</td>"
+            )
+        body_rows.append(f"<tr>{''.join(row_cells)}</tr>")
 
-    output_lines += [
-        "",
-        "Interpretation: +1.0 = perfect co-movement, -1.0 = perfect inverse, "
-        "0.0 = no linear relationship.",
-    ]
-    return "\n".join(output_lines)
+    caption = (
+        f"<p style='font-family:var(--font-sans);font-size:11px;color:var(--text-muted);"
+        f"margin-bottom:10px;'>{min_len} trading days &mdash; {n} instruments. "
+        f"Color: <span style='color:#9b2335;'>&#9632;</span> high co-movement "
+        f"&nbsp;|&nbsp; <span style='color:#276749;'>&#9632;</span> diversification benefit "
+        f"&nbsp;|&nbsp; <span style='color:#4a5568;'>&#9632;</span> uncorrelated</p>"
+    )
+    table_html = (
+        f"<table class='correlation-matrix-table'>"
+        f"<thead>{header_row}</thead>"
+        f"<tbody>{''.join(body_rows)}</tbody>"
+        f"</table>"
+    )
+    return caption + table_html

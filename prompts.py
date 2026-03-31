@@ -297,17 +297,16 @@ STRATEGIC_INSTRUMENT_PROMPT = """\
 ## INSTRUCTIONS
 
 **Trade constraints (mandatory):**
+- HARD RULE: You MUST ONLY select standard, US-listed individual company
+  equities (NYSE or NASDAQ). Options, ETFs, ADRs, Commodities, Indices,
+  and foreign-listed securities are STRICTLY PROHIBITED.
 - Do NOT recommend foreign exchange (currency pairs) or commodity trades.
-  Permitted asset classes: EQUITY, FIXED_INCOME, DERIVATIVE only.
-- HARD RULE: ETFs and Index Funds are STRICTLY PROHIBITED for the strategic
-  trade.  You must select an individual company equity.  Sector ETFs, thematic
-  ETFs, and broad-market ETFs are all forbidden regardless of thesis fit.
 - Time horizon: 3-12 months (strategic).
 
 Identify the single best individual company equity to express the dominant
 geopolitical or macroeconomic theme in today's intelligence.
 
-**instrument:** EXCHANGE:TICKER format (e.g., "NYSE:LMT"). US exchanges only.
+**instrument:** EXCHANGE:TICKER format (e.g., "NYSE:LMT"). NYSE or NASDAQ only.
 
 **last_price:** Populate from the live financial data provided above.
 
@@ -362,9 +361,10 @@ SINGLE_POSITIONAL_TRADE_PROMPT = """\
 ## INSTRUCTIONS
 
 **Trade constraints (mandatory):**
+- HARD RULE: You MUST ONLY select standard, US-listed individual company
+  equities (NYSE or NASDAQ). Options, ETFs, ADRs, Commodities, Indices,
+  and foreign-listed securities are STRICTLY PROHIBITED.
 - Do NOT recommend foreign exchange (currency pairs) or commodity trades.
-  Permitted asset classes: EQUITY, FIXED_INCOME, DERIVATIVE only.
-- Prefer individual company equities over sector or thematic ETFs.
 - HARD RULE: You must not use any instrument listed in the "INSTRUMENTS ALREADY
   USED" section above.
 - Time horizon: 2-8 weeks (positional).
@@ -372,7 +372,7 @@ SINGLE_POSITIONAL_TRADE_PROMPT = """\
 Generate exactly ONE positional trade driven by near-to-medium-term
 developments identified in today's intelligence.
 
-**instrument:** EXCHANGE:TICKER format. US exchanges only.
+**instrument:** EXCHANGE:TICKER format. NYSE or NASDAQ only.
 
 **last_price:** Populate from the live financial data provided.
 
@@ -416,19 +416,18 @@ SINGLE_TACTICAL_TRADE_PROMPT = """\
 ## INSTRUCTIONS
 
 **Trade constraints (mandatory):**
+- HARD RULE: You MUST ONLY select standard, US-listed individual company
+  equities (NYSE or NASDAQ). Options, ETFs, ADRs, Commodities, Indices,
+  and foreign-listed securities are STRICTLY PROHIBITED.
 - Do NOT recommend foreign exchange (currency pairs) or commodity trades.
-  Permitted asset classes: EQUITY, FIXED_INCOME, DERIVATIVE only.
 - HARD RULE: You must not use any instrument listed in the "INSTRUMENTS ALREADY
   USED" section above.
 - Time horizon: 1-10 trading days (tactical).
-- If this is trade slot 3, strongly prefer expressing the trade through options.
-  For trades 1-2, options are appropriate for event-driven binary catalysts.
 
 Generate exactly ONE tactical trade exploiting a near-term catalyst or
 event-driven opportunity confirmed by today's intelligence.
 
-**instrument:** EXCHANGE:TICKER format for equities; for options trades, include
-the full contract in instrument (e.g., "NASDAQ:KTOS $25C 18-Apr-2025").
+**instrument:** EXCHANGE:TICKER format (e.g., "NYSE:DAL"). NYSE or NASDAQ only.
 
 **last_price:** Populate from the live financial data provided.
 
@@ -474,10 +473,10 @@ POSITIONAL_TRADES_PROMPT = """\
 ## INSTRUCTIONS
 
 **Trade constraints (mandatory):**
+- HARD RULE: You MUST ONLY select standard, US-listed individual company
+  equities (NYSE or NASDAQ). Options, ETFs, ADRs, Commodities, Indices,
+  and foreign-listed securities are STRICTLY PROHIBITED.
 - Do NOT recommend foreign exchange (currency pairs) or commodity trades.
-  Permitted asset classes: EQUITY, FIXED_INCOME, DERIVATIVE only.
-- Prefer individual company equities over sector or thematic ETFs. Use an ETF
-  only when no single liquid company equity adequately captures the thesis.
 - HARD RULE: You must not use any instrument listed in the "INSTRUMENTS ALREADY
   USED" section above. Each trade in this briefing must use a distinct ticker.
 
@@ -495,8 +494,8 @@ Each trade must include:
 - Specific risk factors — name the concrete events or conditions that would
   invalidate the setup
 
-**instrument:** Must be a specific, liquid, publicly traded instrument using
-EXCHANGE:TICKER format (e.g., "NYSE:KO").
+**instrument:** Must be a specific, liquid, US-listed company equity using
+EXCHANGE:TICKER format (e.g., "NYSE:KO"). NYSE or NASDAQ only.
 
 **last_price:** Populate from the live financial data provided above.
 
@@ -532,10 +531,10 @@ TACTICAL_TRADES_PROMPT = """\
 ## INSTRUCTIONS
 
 **Trade constraints (mandatory):**
+- HARD RULE: You MUST ONLY select standard, US-listed individual company
+  equities (NYSE or NASDAQ). Options, ETFs, ADRs, Commodities, Indices,
+  and foreign-listed securities are STRICTLY PROHIBITED.
 - Do NOT recommend foreign exchange (currency pairs) or commodity trades.
-  Permitted asset classes: EQUITY, FIXED_INCOME, DERIVATIVE only.
-- Prefer individual company equities over sector or thematic ETFs. Use an ETF
-  only when no single liquid company equity adequately captures the thesis.
 - HARD RULE: You must not use any instrument listed in the "INSTRUMENTS ALREADY
   USED" section above. Each trade in this briefing must use a distinct ticker.
 
@@ -552,13 +551,10 @@ Each trade must include:
 - Specific risk factors: name the concrete events or conditions that would
   invalidate the setup within the tactical horizon
 
-**instrument:** Must be a specific, liquid, publicly traded instrument using
-EXCHANGE:TICKER format (e.g., "NYSE:KO").
+**instrument:** Must be a specific, liquid, US-listed company equity using
+EXCHANGE:TICKER format (e.g., "NYSE:KO"). NYSE or NASDAQ only.
 
 **last_price:** Populate from the live financial data provided above.
-
-At least one of the 3 trades must be expressed through options. For options trades,
-specify the full contract in the instrument field (e.g., "NASDAQ:KTOS $25C 18-Apr-2025").
 
 Output valid JSON conforming to the TacticalTradeSet schema (exactly 3 trades).
 """

@@ -1101,6 +1101,35 @@ _STYLES = """
     .book-author { font-style: italic; font-size: 8.5pt; color: #555 !important; }
     .book-rel    { font-size: 9pt; }
   }
+
+  /* ── Correlation matrix table ── */
+  .correlation-matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    margin-top: 12px;
+  }
+  .correlation-matrix-table th,
+  .correlation-matrix-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .correlation-matrix-table thead th {
+    font-weight: 700;
+    color: var(--mck-navy);
+    border-bottom: 2px solid var(--mck-navy);
+    text-align: center;
+  }
+  .correlation-matrix-table thead th:first-child { text-align: left; }
+  .correlation-matrix-table tbody th {
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-align: left;
+  }
+  .correlation-matrix-table tbody tr:last-child td,
+  .correlation-matrix-table tbody tr:last-child th { border-bottom: none; }
 </style>
 """
 
@@ -1261,7 +1290,20 @@ def _fmt_tod(tod: str | None) -> str:
     return _TOD_ABBR.get(tod.strip().lower(), tod)
 
 
+_NO_CALENDAR_MSG = (
+    "<p style='font-family:var(--font-sans);font-size:13px;color:var(--text-muted);'>"
+    "No high-impact US macroeconomic or earnings events scheduled for this window.</p>"
+)
+
+
 def _render_calendar(opening: OpeningSections) -> str:
+    if not opening.calendar_events:
+        return (
+            "<div class='section-wrapper' id='forward-calendar'>"
+            "<h2>Forward Calendar</h2>"
+            + _NO_CALENDAR_MSG
+            + "</div>"
+        )
     rows = []
     for ev in opening.calendar_events:
         date_cell = (
@@ -1294,7 +1336,12 @@ def _render_calendar(opening: OpeningSections) -> str:
 
 def _render_upcoming_earnings(opening: OpeningSections) -> str:
     if not opening.upcoming_earnings:
-        return ""
+        return (
+            "<div class='section-wrapper' id='earnings-upcoming'>"
+            "<h2>Earnings Calendar</h2>"
+            + _NO_CALENDAR_MSG
+            + "</div>"
+        )
     cards = []
     for ev in opening.upcoming_earnings:
         tod = _fmt_tod(ev.time_of_day)
@@ -1824,6 +1871,20 @@ def _render_intelligence_summary(appendix: AppendixOutput) -> str:
     )
 
 
+def _render_correlation_matrix(matrix_html: str) -> str:
+    """Render the 30-day price correlation matrix as a styled HTML table."""
+    if not matrix_html or matrix_html.startswith("Insufficient"):
+        return ""
+    return (
+        "<div class='section-wrapper' id='correlation-matrix'>"
+        "<h2>Instrument Price Correlations (30-Day)</h2>"
+        "<div class='card'>"
+        + matrix_html
+        + "</div>"
+        "</div>"
+    )
+
+
 
 # ── Public Assembly Functions ─────────────────────────────────────────────────
 
@@ -1841,6 +1902,7 @@ def compile_html_document(
     tactical_quants: Optional[list] = None,
     adversarial: Optional[AdversarialAssessment] = None,
     logic_review: Optional[TradeLogicReview] = None,
+    correlation_matrix: Optional[str] = None,
 ) -> str:
     """
     Concatenate all rendered HTML sections into a single styled document.
@@ -1869,6 +1931,9 @@ def compile_html_document(
     if tactical is not None:
         sections.append(_render_tactical_trades(tactical, quants=tactical_quants or []))
 
+    if correlation_matrix:
+        sections.append(_render_correlation_matrix(correlation_matrix))
+
     sections.append(_render_appendix(appendix))
 
     body = "\n".join(sections)
@@ -1895,6 +1960,7 @@ def aggregate_json_output(
     positional: Optional[PositionalTradeSet] = None,
     tactical:   Optional[TacticalTradeSet] = None,
     briefing_date: Optional[date] = None,
+    correlation_matrix: Optional[str] = None,
 ) -> dict:
     """
     Aggregate all validated Pydantic objects into a single master dictionary
@@ -1912,8 +1978,9 @@ def aggregate_json_output(
         "date":              briefing_date.isoformat(),
         "opening_sections":  opening.model_dump(),
         "priority_themes":   themes.model_dump(),
-        "strategic_trade":   strategic.model_dump() if strategic is not None else None,
-        "positional_trades": positional.model_dump() if positional is not None else None,
-        "tactical_trades":   tactical.model_dump() if tactical is not None else None,
-        "appendix":          appendix.model_dump(),
+        "strategic_trade":    strategic.model_dump() if strategic is not None else None,
+        "positional_trades":  positional.model_dump() if positional is not None else None,
+        "tactical_trades":    tactical.model_dump() if tactical is not None else None,
+        "appendix":           appendix.model_dump(),
+        "correlation_matrix": correlation_matrix,
     }

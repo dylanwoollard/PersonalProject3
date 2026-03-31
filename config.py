@@ -5,6 +5,7 @@ This is the single file to edit for all system behavior.  It is imported by
 every module so changes here propagate everywhere automatically.
 """
 
+import os
 from pathlib import Path
 
 
@@ -12,9 +13,14 @@ from pathlib import Path
 # LLM MODEL
 # ══════════════════════════════════════════════════════════════════════════════
 
-# MODEL = "gemini-3.1-flash-lite-preview"
-# MODEL = "gemini-3-flash-preview"
 MODEL = "gemini-2.5-pro"
+
+# Fallback model chain — exhausted in order when the primary model returns
+# repeated 503 / overloaded errors.  The retry loop switches to
+# FALLBACK_MODELS[0] on attempt FALLBACK_THRESHOLD+1, then to
+# FALLBACK_MODELS[1] on attempt FALLBACK_THRESHOLD*2+1, etc.
+FALLBACK_MODELS    = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+FALLBACK_THRESHOLD = 3   # attempts on a given model before stepping to the next
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GENERATION TEMPERATURES
@@ -36,7 +42,7 @@ TEMP_ADVERSARIAL  = 0.7   # Adversarial scenario assessment (higher — contrari
 # ══════════════════════════════════════════════════════════════════════════════
 
 GMAIL_LABEL        = "DailyBriefing"  # Gmail label to query for intelligence emails
-FETCH_WINDOW_HOURS = 96               # Rolling lookback window for email fetching (hours)
+FETCH_WINDOW_HOURS = 36              # Rolling lookback window for email fetching (hours)
 MAX_EMAILS         = 50               # Hard cap on emails retrieved per run
 PURGE_LABELS       = True             # Remove GMAIL_LABEL after a successful run.
                                       # Override with --no-pu24rge for testing.
@@ -46,9 +52,26 @@ PURGE_LABELS       = True             # Remove GMAIL_LABEL after a successful ru
 # DELIVERY
 # ══════════════════════════════════════════════════════════════════════════════
 
-BRIEFING_EMAIL = "dylanwoollardbiz@gmail.com"       # Recipient address for the emailed PDF.
+BRIEFING_EMAIL = "dylanwoollardbiz@gmail.com"       # Recipient address for the briefing link.
                           # Leave blank to fall back to the BRIEFING_EMAIL env var in .env.
-DAILY_RUN_TIME = "04:30"  # Default time used by schedule_task.py (24-hour HH:MM).
+DAILY_RUN_TIME = "22:00"  # Default time used by schedule_task.py (24-hour HH:MM).
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GOOGLE CLOUD STORAGE HOSTING
+# The HTML briefing is uploaded to GCS and a signed link is emailed.
+# Add to .env:
+#   GCS_BUCKET_NAME               = <your bucket name>
+#   GOOGLE_APPLICATION_CREDENTIALS = /absolute/path/to/service-account-key.json
+# The service account needs the Storage Object Creator role on the bucket.
+# ══════════════════════════════════════════════════════════════════════════════
+
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
+if not GCS_BUCKET_NAME:
+    raise ValueError(
+        "Missing GCS_BUCKET_NAME in .env file.  "
+        "Set it to the name of your Google Cloud Storage bucket."
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════

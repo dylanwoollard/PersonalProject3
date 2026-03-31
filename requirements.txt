@@ -16,6 +16,12 @@ playwright>=1.40.0
 # Async file I/O
 aiofiles>=23.2.0
 
+# Financial Modeling Prep SDK (economic + earnings calendar)
+fmpsdk>=0.5.0
+
+# Google Cloud Storage (HTML briefing hosting)
+google-cloud-storage>=2.16.0
+
 # Environment variable management
 python-dotenv>=1.0.0
 

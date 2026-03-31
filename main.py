@@ -46,7 +46,7 @@ except ImportError:
 
 import config
 from compiler import aggregate_json_output, compile_html_document
-from delivery import deliver_briefing
+from delivery import deliver_briefing, upload_html_to_s3
 from generators import (
     generate_adversarial_assessment,
     generate_appendix_database,
@@ -542,6 +542,7 @@ async def run_briefing(
                 tactical_quants=tactical_quants,
                 adversarial=adversarial,
                 logic_review=logic_review,
+                correlation_matrix=correlation_matrix_str,
             )
             json_output = aggregate_json_output(
                 opening=opening,
@@ -551,6 +552,7 @@ async def run_briefing(
                 positional=positional,
                 tactical=tactical,
                 briefing_date=target_date,
+                correlation_matrix=correlation_matrix_str,
             )
 
         # ── Level 1: Save to disk ──────────────────────────────────────────────
@@ -571,10 +573,12 @@ async def run_briefing(
         if purged:
             _log("LEVEL 1", f"Purged {purged} expired record(s) from longitudinal memory.")
 
-        # ── Delivery: PDF + email ──────────────────────────────────────────────
+        # ── Delivery: S3 upload + email link ──────────────────────────────────
         async with bp.step("deliver"):
-            pdf_path = await deliver_briefing(
-                html_path=html_path,
+            hosted_url = await upload_html_to_s3(html_path, target_date)
+            _log("DELIVERY", f"Briefing hosted → {hosted_url}")
+            await deliver_briefing(
+                hosted_url=hosted_url,
                 briefing_date=target_date,
             )
 
@@ -592,7 +596,7 @@ async def run_briefing(
         _logger.info("")
         _log("COMPLETE", f"Pipeline finished in {total:.1f}s")
         _log("COMPLETE", f"  HTML  → {html_path}")
-        _log("COMPLETE", f"  PDF   → {pdf_path}")
+        _log("COMPLETE", f"  S3    → {hosted_url}")
         _log("COMPLETE", f"  JSON  → {json_path}")
         _log("COMPLETE", f"  LOG   → {config.OUTPUT_DIR / f'{target_date.isoformat()}.log'}")
         _log("COMPLETE", f"  DB    → intelligence_memory.db")

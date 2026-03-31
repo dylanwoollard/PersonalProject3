@@ -1,24 +1,29 @@
 """
-delivery.py — PDF generation and Gmail email delivery (Level 1).
+delivery.py — GCS hosting and Gmail email delivery (Level 1).
 
-PDF rendering uses Playwright/Chromium for pixel-perfect fidelity with the
-dark-themed HTML output.  Email delivery uses the Gmail API (same OAuth2
-credentials as ingestion) so no separate SMTP configuration is required.
+The HTML briefing is uploaded to a Google Cloud Storage bucket and a signed
+link (valid 7 days) is emailed via the Gmail API.  No PDF is generated.
 
-One-time setup (after installing requirements):
-  playwright install chromium
+One-time setup:
+  Add to .env:
+    GCS_BUCKET_NAME               = <your bucket name>
+    GOOGLE_APPLICATION_CREDENTIALS = /absolute/path/to/service-account-key.json
+  The service account needs the Storage Object Creator role on the bucket and
+  the Service Account Token Creator role to generate signed URLs.
 
 Environment variables (set in .env):
-  BRIEFING_EMAIL   — recipient address (defaults to your own Gmail address)
+  BRIEFING_EMAIL                 — recipient address
+  GCS_BUCKET_NAME                — target GCS bucket
+  GOOGLE_APPLICATION_CREDENTIALS — path to GCP service account JSON key
 """
 
 from __future__ import annotations
 
 import asyncio
 import base64
+import datetime
 import os
 from datetime import date
-from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -31,58 +36,64 @@ import config
 _logger = logging.getLogger("briefing")
 
 
-# ── PDF Generation ────────────────────────────────────────────────────────────
+# ── GCS Upload ────────────────────────────────────────────────────────────────
 
-async def generate_pdf(html_path: Path, pdf_path: Path) -> Path:
+def _upload_html_to_gcs_sync(html_path: Path, target_date: date) -> str:
     """
-    Render the saved HTML briefing to PDF using a headless Chromium browser.
+    Upload the HTML briefing file to GCS and return a signed URL valid for 7 days.
 
-    Chromium's print engine preserves all CSS (including dark backgrounds,
-    custom properties, and grid layouts) when print_background=True.
+    The blob is stored as:
+      briefings/dailybrief_YYYYMMDD.html
 
-    Args:
-        html_path: Path to the saved .html file.
-        pdf_path:  Destination .pdf path.
+    content_type is set to text/html and content_disposition to inline so the
+    link opens directly in a browser rather than triggering a download.
 
-    Returns:
-        The resolved pdf_path.
+    Authentication uses GOOGLE_APPLICATION_CREDENTIALS from the environment
+    (set in .env).  The service account must have Storage Object Creator and
+    Service Account Token Creator roles.
     """
     try:
-        from playwright.async_api import async_playwright
+        from google.cloud import storage
     except ImportError:
         raise ImportError(
-            "Playwright is not installed.  Run:\n"
-            "  pip install playwright\n"
-            "  playwright install chromium"
+            "google-cloud-storage is not installed.  "
+            "Run:  pip install google-cloud-storage"
         )
 
-    async with async_playwright() as pw:
-        browser = await pw.chromium.launch()
-        page    = await browser.new_page()
+    blob_name = f"briefings/dailybrief_{target_date.strftime('%Y%m%d')}.html"
 
-        # Use file:/// URI so local assets resolve correctly.
-        # "load" is used instead of "networkidle" — local file:// URIs have no
-        # network activity so "networkidle" can stall indefinitely.
-        await page.goto(html_path.resolve().as_uri(), wait_until="load")
+    client = storage.Client()
+    bucket = client.bucket(config.GCS_BUCKET_NAME)
+    blob   = bucket.blob(blob_name)
 
-        # Render using screen CSS — bypasses @media print reset entirely.
-        # print_background=True ensures dark backgrounds and colors are included.
-        await page.emulate_media(media="screen")
+    blob.upload_from_filename(
+        str(html_path.resolve()),
+        content_type="text/html; charset=utf-8",
+    )
 
-        await page.pdf(
-            path=str(pdf_path.resolve()),  # must be absolute on Windows
-            format="A4",
-            print_background=True,
-            margin={
-                "top":    "18mm",
-                "bottom": "18mm",
-                "left":   "14mm",
-                "right":  "14mm",
-            },
-        )
-        await browser.close()
+    # Set inline disposition so the browser renders it rather than downloads it.
+    blob.content_disposition = "inline"
+    blob.patch()
 
-    return pdf_path
+    signed_url = blob.generate_signed_url(
+        version    = "v4",
+        expiration = datetime.timedelta(days=7),
+        method     = "GET",
+    )
+    return signed_url
+
+
+async def upload_html_to_s3(html_path: Path, target_date: date) -> str:
+    """
+    Async wrapper: upload the HTML briefing to GCS and return a signed URL.
+
+    Named upload_html_to_s3 for backwards compatibility with main.py call sites;
+    delegates to the GCS implementation via a thread executor.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None, _upload_html_to_gcs_sync, html_path, target_date
+    )
 
 
 # ── Email Delivery ────────────────────────────────────────────────────────────
@@ -93,15 +104,10 @@ def _get_sender_address(service) -> str:
     return profile.get("emailAddress", "me")
 
 
-def _send_email_sync(
-    pdf_path: Path,
-    briefing_date: date,
-    recipient: str,
-) -> None:
+def _send_email_sync(hosted_url: str, briefing_date: date, recipient: str) -> None:
     """
-    Build and send the briefing email via Gmail API.
-    The PDF is the sole deliverable; the body is a short plain-text notification.
-    Runs synchronously — call via run_in_executor from async code.
+    Send a plain-text briefing link email via the Gmail API.
+    Runs synchronously — called via run_in_executor from async code.
     """
     from ingestion import _get_gmail_service
 
@@ -110,31 +116,29 @@ def _send_email_sync(
 
     subject = f"Daily Brief — {briefing_date.strftime('%A, %d %B %Y')}"
 
-    msg            = MIMEMultipart("mixed")
+    body_text = (
+        f"Your Daily Brief for {briefing_date.strftime('%A, %d %B %Y')} is ready.\n\n"
+        f"View it here:\n{hosted_url}\n"
+    )
+
+    msg            = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"]    = sender
     msg["To"]      = recipient
-
-    body_text = (
-        f"Your Daily Brief for {briefing_date.strftime('%A, %d %B %Y')} "
-        f"is attached.\n"
-    )
     msg.attach(MIMEText(body_text, "plain", "utf-8"))
 
-    if not pdf_path.exists() or pdf_path.stat().st_size == 0:
-        raise FileNotFoundError(
-            f"PDF not found or empty at {pdf_path}. "
-            "Ensure Playwright/Chromium is installed and PDF generation succeeded."
-        )
-
-    pdf_bytes  = pdf_path.read_bytes()
-    attachment = MIMEApplication(pdf_bytes, _subtype="pdf")
-    attachment.add_header(
-        "Content-Disposition",
-        "attachment",
-        filename=f"dailybrief{briefing_date.strftime('%m%d%y')}.pdf",
+    body_html = (
+        "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;font-size:14px;"
+        "color:#111;max-width:600px;margin:40px auto;padding:0 24px;'>"
+        f"<p>Your Daily Brief for <strong>{briefing_date.strftime('%A, %d %B %Y')}</strong> is ready.</p>"
+        f"<p><a href='{hosted_url}' style='display:inline-block;padding:12px 24px;"
+        "background:#051c2c;color:#fff;text-decoration:none;border-radius:4px;"
+        "font-weight:bold;'>View Briefing &rarr;</a></p>"
+        f"<p style='font-size:12px;color:#888;margin-top:24px;'>"
+        f"Or paste this URL into your browser:<br>{hosted_url}</p>"
+        "</body></html>"
     )
-    msg.attach(attachment)
+    msg.attach(MIMEText(body_html, "html", "utf-8"))
 
     raw_bytes = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
     service.users().messages().send(userId="me", body={"raw": raw_bytes}).execute()
@@ -143,21 +147,18 @@ def _send_email_sync(
 # ── Public Entry Point ────────────────────────────────────────────────────────
 
 async def deliver_briefing(
-    html_path: Path,
+    hosted_url: str,
     briefing_date: date,
     recipient_email: Optional[str] = None,
-) -> Path:
+) -> None:
     """
-    Generate a PDF from the saved HTML briefing and email it via Gmail.
+    Email a link to the S3-hosted HTML briefing via Gmail.
 
     Args:
-        html_path:       Path to the saved .html file (source for PDF rendering).
+        hosted_url:      Public S3 URL of the uploaded HTML file.
         briefing_date:   The briefing date.
         recipient_email: Destination address.  Falls back to the BRIEFING_EMAIL
-                         environment variable, then to the authenticated Gmail address.
-
-    Returns:
-        Path to the generated PDF file.
+                         config value, then the BRIEFING_EMAIL env var.
     """
     if not recipient_email:
         recipient_email = (
@@ -165,30 +166,20 @@ async def deliver_briefing(
             or os.environ.get("BRIEFING_EMAIL", "")
         )
 
-    pdf_path = html_path.with_name(
-        f"dailybrief{briefing_date.strftime('%m%d%y')}.pdf"
-    )
-
-    _logger.info("[DELIVERY] Rendering PDF from HTML...")
-    await generate_pdf(html_path, pdf_path)
-    _logger.info("[DELIVERY] PDF saved → %s", pdf_path)
-
     if not recipient_email:
         _logger.warning(
             "[DELIVERY] No recipient configured — skipping email. "
-            "Set BRIEFING_EMAIL in .env to enable delivery."
+            "Set BRIEFING_EMAIL in config.py or .env to enable delivery."
         )
-        return pdf_path
+        return
 
-    _logger.info("[DELIVERY] Sending briefing to %s...", recipient_email)
+    _logger.info("[DELIVERY] Sending briefing link to %s...", recipient_email)
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(
         None,
         _send_email_sync,
-        pdf_path,
+        hosted_url,
         briefing_date,
         recipient_email,
     )
-    _logger.info("[DELIVERY] Briefing delivered to %s.", recipient_email)
-
-    return pdf_path
+    _logger.info("[DELIVERY] Briefing link delivered to %s.", recipient_email)

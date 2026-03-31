@@ -65,12 +65,29 @@ from prompts import (
     build_prompt,
 )
 
-MODEL = config.MODEL
+# ── Model chain ───────────────────────────────────────────────────────────────
+# Resolved once at import time from config.  The list is ordered from most
+# preferred (primary) to least preferred (last-resort fallback).
+_MODEL_CHAIN: list[str] = [config.MODEL] + list(config.FALLBACK_MODELS)
+
+
+def _model_for_attempt(attempt: int) -> str:
+    """
+    Return the model name to use for a given attempt index (0-based).
+
+    Attempts 0..FALLBACK_THRESHOLD-1   → _MODEL_CHAIN[0]  (primary)
+    Attempts FALLBACK_THRESHOLD..2*T-1 → _MODEL_CHAIN[1]  (first fallback)
+    …and so on, clamped to the last entry.
+    """
+    idx = min(attempt // config.FALLBACK_THRESHOLD, len(_MODEL_CHAIN) - 1)
+    return _MODEL_CHAIN[idx]
+
 
 # ── Telemetry ─────────────────────────────────────────────────────────────────
 
 def _emit_telemetry(
     call_label: str,
+    model: str,
     prompt_chars: int,
     response_chars: int,
     latency_s: float,
@@ -82,8 +99,9 @@ def _emit_telemetry(
     """
     Append one JSON line to TELEMETRY_PATH.
 
-    Each record captures: ISO timestamp, model name, call label (schema class
-    name or free-text generation label), prompt/response character counts,
+    Each record captures: ISO timestamp, model name (the model actually used for
+    this call — may differ from the primary if a fallback was active), call label
+    (schema class name or free-text label), prompt/response character counts,
     token usage from the API response (None when not reported by the SDK),
     wall-clock latency in seconds, retry attempt number, and temperature.
 
@@ -95,7 +113,7 @@ def _emit_telemetry(
         return
     record = {
         "ts":                 __import__("datetime").datetime.utcnow().isoformat() + "Z",
-        "model":              MODEL,
+        "model":              model,
         "call":               call_label,
         "prompt_chars":       prompt_chars,
         "response_chars":     response_chars,
@@ -152,6 +170,10 @@ async def _generate_structured(
     conforming output.  The raw JSON text is then validated back through
     Pydantic for a fully typed return value.
 
+    Model fallback: if the primary model returns repeated 503/overloaded
+    errors, the retry loop automatically steps to the next model in
+    _MODEL_CHAIN every FALLBACK_THRESHOLD attempts.
+
     Args:
         client:          Authenticated genai.Client instance.
         prompt:          Fully assembled prompt string.
@@ -164,17 +186,34 @@ async def _generate_structured(
     call_label = _label or response_schema.__name__
 
     # Stagger concurrent calls to reduce simultaneous quota hits.
-    # 2s window distributes 5+ concurrent Phase-B calls across the rate-limit window.
     await asyncio.sleep(random.uniform(0, 2.0))
 
     delay = config.RETRY_BASE_DELAY
+    _last_model: str | None = None  # track model changes for fallback logging
+
     for attempt in range(config.RETRY_MAX_ATTEMPTS):
+        current_model = _model_for_attempt(attempt)
+
+        # Log whenever we step to a new (fallback) model.
+        if current_model != _last_model:
+            if _last_model is not None:
+                _logger.warning(
+                    "[FALLBACK] Primary model exhausted after %d attempt(s). "
+                    "Falling back to %s for %s (attempt %d/%d).",
+                    attempt,
+                    current_model,
+                    call_label,
+                    attempt + 1,
+                    config.RETRY_MAX_ATTEMPTS,
+                )
+            _last_model = current_model
+
         t0 = time.perf_counter()
         try:
             async with _llm_semaphore:
                 response = await asyncio.wait_for(
                     client.aio.models.generate_content(
-                        model=MODEL,
+                        model=current_model,
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             temperature=temperature,
@@ -204,15 +243,17 @@ async def _generate_structured(
             if not response.text:
                 raise RuntimeError(
                     f"[EMPTY] Model returned empty text for {response_schema.__name__}. "
-                    f"Possible safety block. finish_reason={getattr(getattr(response, 'candidates', [None])[0], 'finish_reason', 'unknown')}"
+                    f"Possible safety block. finish_reason="
+                    f"{getattr(getattr(response, 'candidates', [None])[0], 'finish_reason', 'unknown')}"
                 )
 
             result = response_schema.model_validate_json(response.text)
 
-            # ── Telemetry record ──────────────────────────────────────────────
+            # ── Telemetry record (records the model that actually succeeded) ──
             usage = getattr(response, "usage_metadata", None)
             _emit_telemetry(
                 call_label=call_label,
+                model=current_model,
                 prompt_chars=len(prompt),
                 response_chars=len(response.text),
                 latency_s=latency,
@@ -234,12 +275,9 @@ async def _generate_structured(
                 or "ServiceUnavailable" in type(exc).__name__
                 # Retry on schema validation failures — the model occasionally
                 # produces structurally valid JSON that fails Pydantic constraints.
-                # A retry with the same prompt usually succeeds.
                 or isinstance(exc, ValidationError)
                 # Retry on stall: asyncio.wait_for fires TimeoutError when the
-                # model holds the connection open without completing.  Classified
-                # as retriable so the semaphore slot is released and the call is
-                # re-queued through the normal exponential backoff path.
+                # model holds the connection open without completing.
                 or isinstance(exc, asyncio.TimeoutError)
             )
             last_attempt = attempt == config.RETRY_MAX_ATTEMPTS - 1
@@ -250,9 +288,10 @@ async def _generate_structured(
             wait   = delay + jitter
             if isinstance(exc, asyncio.TimeoutError):
                 _logger.warning(
-                    "[TIMEOUT] %s failed to respond within %.0fs — retrying "
+                    "[TIMEOUT] %s stalled on %s within %.0fs — retrying "
                     "(attempt %d/%d), backing off %.1fs.",
                     call_label,
+                    current_model,
                     config.LLM_TIMEOUT_SECONDS,
                     attempt + 1,
                     config.RETRY_MAX_ATTEMPTS,
@@ -260,9 +299,10 @@ async def _generate_structured(
                 )
             else:
                 _logger.warning(
-                    "[HIGH USAGE] %s rate limit for %s — waiting %.1fs "
+                    "[HIGH USAGE] %s on %s for %s — waiting %.1fs "
                     "(attempt %d/%d). %s: %s",
                     type(exc).__name__,
+                    current_model,
                     call_label,
                     wait,
                     attempt + 1,
@@ -272,11 +312,12 @@ async def _generate_structured(
                 )
             await asyncio.sleep(wait)
             _logger.info(
-                "[RESUMING] Retrying %s after %.1fs wait (attempt %d/%d)...",
+                "[RESUMING] Retrying %s after %.1fs wait (attempt %d/%d, model=%s)...",
                 call_label,
                 wait,
                 attempt + 2,
                 config.RETRY_MAX_ATTEMPTS,
+                _model_for_attempt(attempt + 1),
             )
             delay *= config.RETRY_BACKOFF
 
@@ -301,19 +342,35 @@ async def _generate_text(
 
     Used for free-form generation tasks (summarization) where response_schema
     and JSON enforcement are not needed.  Applies the same semaphore, retry,
-    and stagger logic as _generate_structured so summarization calls are
-    subject to the same rate-limit protections.
+    fallback chain, and stagger logic as _generate_structured.
     """
     await asyncio.sleep(random.uniform(0, 2.0))
 
     delay = config.RETRY_BASE_DELAY
+    _last_model: str | None = None
+
     for attempt in range(config.RETRY_MAX_ATTEMPTS):
+        current_model = _model_for_attempt(attempt)
+
+        if current_model != _last_model:
+            if _last_model is not None:
+                _logger.warning(
+                    "[FALLBACK] Primary model exhausted after %d attempt(s). "
+                    "Falling back to %s for %s (attempt %d/%d).",
+                    attempt,
+                    current_model,
+                    label,
+                    attempt + 1,
+                    config.RETRY_MAX_ATTEMPTS,
+                )
+            _last_model = current_model
+
         t0 = time.perf_counter()
         try:
             async with _llm_semaphore:
                 response = await asyncio.wait_for(
                     client.aio.models.generate_content(
-                        model=MODEL,
+                        model=current_model,
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             temperature=temperature,
@@ -334,10 +391,11 @@ async def _generate_text(
 
             text = response.text.strip()
 
-            # ── Telemetry record ──────────────────────────────────────────────
+            # ── Telemetry record (records the model that actually succeeded) ──
             usage = getattr(response, "usage_metadata", None)
             _emit_telemetry(
                 call_label=label,
+                model=current_model,
                 prompt_chars=len(prompt),
                 response_chars=len(text),
                 latency_s=latency,
@@ -367,9 +425,10 @@ async def _generate_text(
             wait   = delay + jitter
             if isinstance(exc, asyncio.TimeoutError):
                 _logger.warning(
-                    "[TIMEOUT] %s failed to respond within %.0fs — retrying "
+                    "[TIMEOUT] %s stalled on %s within %.0fs — retrying "
                     "(attempt %d/%d), backing off %.1fs.",
                     label,
+                    current_model,
                     config.LLM_TIMEOUT_SECONDS,
                     attempt + 1,
                     config.RETRY_MAX_ATTEMPTS,
@@ -377,16 +436,17 @@ async def _generate_text(
                 )
             else:
                 _logger.warning(
-                    "[HIGH USAGE] %s rate limit for %s — waiting %.1fs "
+                    "[HIGH USAGE] %s on %s for %s — waiting %.1fs "
                     "(attempt %d/%d). %s: %s",
-                    type(exc).__name__, label, wait,
+                    type(exc).__name__, current_model, label, wait,
                     attempt + 1, config.RETRY_MAX_ATTEMPTS,
                     type(exc).__name__, exc_str[:120],
                 )
             await asyncio.sleep(wait)
             _logger.info(
-                "[RESUMING] Retrying %s after %.1fs wait (attempt %d/%d)...",
+                "[RESUMING] Retrying %s after %.1fs wait (attempt %d/%d, model=%s)...",
                 label, wait, attempt + 2, config.RETRY_MAX_ATTEMPTS,
+                _model_for_attempt(attempt + 1),
             )
             delay *= config.RETRY_BACKOFF
 
