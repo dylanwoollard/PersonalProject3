@@ -41,10 +41,10 @@ TEMP_ADVERSARIAL  = 0.7   # Adversarial scenario assessment (higher — contrari
 # GMAIL INGESTION
 # ══════════════════════════════════════════════════════════════════════════════
 
-GMAIL_LABEL        = "DailyBriefing"  # Gmail label to query for intelligence emails
-FETCH_WINDOW_HOURS = 36              # Rolling lookback window for email fetching (hours)
+GMAIL_LABEL        = "Daily Briefing"  # Gmail label to query for intelligence emails
+FETCH_WINDOW_HOURS = 24              # Rolling lookback window for email fetching (hours)
 MAX_EMAILS         = 50               # Hard cap on emails retrieved per run
-PURGE_LABELS       = True             # Remove GMAIL_LABEL after a successful run.
+PURGE_LABELS       = False             # Remove GMAIL_LABEL after a successful run.
                                       # Override with --no-pu24rge for testing.
 
 
@@ -54,7 +54,7 @@ PURGE_LABELS       = True             # Remove GMAIL_LABEL after a successful ru
 
 BRIEFING_EMAIL = "dylanwoollardbiz@gmail.com"       # Recipient address for the briefing link.
                           # Leave blank to fall back to the BRIEFING_EMAIL env var in .env.
-DAILY_RUN_TIME = "22:00"  # Default time used by schedule_task.py (24-hour HH:MM).
+DAILY_RUN_TIME = "04:00"  # Default time used by schedule_task.py (24-hour HH:MM).
 
 
 # ══════════════════════════════════════════════════════════════════════════════

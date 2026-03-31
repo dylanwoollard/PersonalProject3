@@ -18,6 +18,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except ImportError:
+    pass    
+
 import config
 
 TASK_NAME = "DailyIntelligenceBriefing"
